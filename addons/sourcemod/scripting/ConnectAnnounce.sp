@@ -1,7 +1,7 @@
 #pragma semicolon 1
 
 #include <sourcemod>
-#include <connect>
+#tryinclude <connect>
 #include <geoip>
 #include <multicolors>
 
@@ -307,6 +307,7 @@ public void Announcer(int client, int iRank)
 		}
 	}
 
+#if defined _Connect_Included
 	if(StrContains(sRawMsg, "{NOSTEAM}"))
 	{
 		if(!SteamClientAuthenticated(sAuth))
@@ -314,6 +315,7 @@ public void Announcer(int client, int iRank)
 		else
 			ReplaceString(sRawMsg, sizeof(sRawMsg), "{NOSTEAM}", "");
 	}
+#endif
 
 	if(StrContains(sRawMsg, "{STEAMID}"))
 	{
