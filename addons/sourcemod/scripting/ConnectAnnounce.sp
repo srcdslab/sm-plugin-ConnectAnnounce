@@ -329,10 +329,24 @@ public void Announcer(int client, int iRank)
 
 	if(StrContains(sRawMsg, "{COUNTRY}"))
 	{
-		if(GetClientIP(client, sIP, sizeof(sIP)) && GeoipCountry(sIP, sCountry, sizeof(sCountry)))
+		char sCountryColor[64] = "";
+		Regex regexHEX = CompileRegex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
+		Regex regexColor = CompileRegex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
+
+		if ((MatchRegex(regexHEX, sRawMsg) >= 1 && GetRegexSubString(regexHEX, 0, sCountryColor, sizeof(sCountryColor)))
+			|| (MatchRegex(regexColor, sRawMsg) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
+		{
+			ReplaceString(sRawMsg, sizeof(sRawMsg), sCountryColor, "");
+			char[] sTagCountryColor = "{COUNTRY_COLOR:";
+			int iStartPos = strlen(sTagCountryColor);
+			Format(sCountryColor, sizeof(sCountryColor), "%s", sCountryColor[iStartPos-1]);
+			sCountryColor[0] = '{';
+		}
+
+		if(GetClientIP(client, sIP, sizeof(sIP)) && GeoipCountry(sIP, sCountry, sizeof(sCountry)) && !StrEqual("", sCountry))
 		{
 			char sBuffer[128];
-			Format(sBuffer, sizeof(sBuffer), " from %s", sCountry);
+			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
 			ReplaceString(sRawMsg, sizeof(sRawMsg), "{COUNTRY}", sBuffer);
 		}
 		else
