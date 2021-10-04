@@ -233,7 +233,8 @@ public void Announcer(int client, int iRank)
 			for (int i = 0; i < iGroupCount; i++)
 			{
 				GroupId gid = GetAdminGroup(aid, i, group, sizeof(group));
-				if (gid != INVALID_GROUP_ID && GetAdmGroupAddFlag(gid, Admin_Generic))
+				if (gid != INVALID_GROUP_ID && (GetAdmGroupAddFlag(gid, Admin_Generic)
+					|| GetAdmGroupAddFlag(gid, Admin_Root) || GetAdmGroupAddFlag(gid, Admin_RCON)))
 				{
 					ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", group);
 					bGroupFound = true;
