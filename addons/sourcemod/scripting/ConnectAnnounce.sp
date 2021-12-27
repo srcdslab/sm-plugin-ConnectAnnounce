@@ -225,7 +225,7 @@ public void Announcer(int client, int iRank)
 	{
 		aid = GetUserAdmin(client);
 
-		if(GetAdminFlag(aid, Admin_Generic))
+		if(GetAdminFlag(aid, Admin_Generic) || GetAdminFlag(aid, Admin_Custom1))
 		{
 			bool bGroupFound = false;
 			char group[64];
@@ -244,31 +244,34 @@ public void Announcer(int client, int iRank)
 
 			if (!bGroupFound)
 			{
-				if(GetAdminFlag(aid, Admin_Root))
+				if (GetAdminFlag(aid, Admin_Generic))
 				{
-					ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Community Manager");
+					if(GetAdminFlag(aid, Admin_Root))
+					{
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Community Manager");
+					}
+					else if(GetAdminFlag(aid, Admin_RCON))
+					{
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Server Manager");				
+					}
+					else
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Admin");
 				}
-				else if(GetAdminFlag(aid, Admin_RCON))
+				else if(GetAdminFlag(aid, Admin_Custom1))
 				{
-					ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Server Manager");				
+					if(GetAdminFlag(aid, Admin_Custom4))
+					{
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top25");
+					}
+					else if(GetAdminFlag(aid, Admin_Custom3))
+					{
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top50");
+					}
+					else
+					{
+						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP");
+					}
 				}
-				else
-					ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Admin");
-			}
-		}
-		else if(GetAdminFlag(aid, Admin_Custom1))
-		{
-			if(GetAdminFlag(aid, Admin_Custom4))
-			{
-				ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top25");
-			}
-			else if(GetAdminFlag(aid, Admin_Custom3))
-			{
-				ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top50");
-			}
-			else
-			{
-				ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP");
 			}
 		}
 		else if(GetAdminFlag(aid, Admin_Custom4))
