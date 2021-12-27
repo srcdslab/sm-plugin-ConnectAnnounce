@@ -225,7 +225,11 @@ public void Announcer(int client, int iRank)
 	{
 		aid = GetUserAdmin(client);
 
-		if(GetAdminFlag(aid, Admin_Generic) || GetAdminFlag(aid, Admin_Custom1))
+		char sPlayerType[256] = "";
+
+		// Admin Type
+		if (GetAdminFlag(aid, Admin_Generic) || GetAdminFlag(aid, Admin_Root) ||
+			GetAdminFlag(aid, Admin_RCON) || GetAdminFlag(aid, Admin_Custom1))
 		{
 			bool bGroupFound = false;
 			char group[64];
@@ -236,64 +240,51 @@ public void Announcer(int client, int iRank)
 				if (gid != INVALID_GROUP_ID && (GetAdmGroupAddFlag(gid, Admin_Generic)
 					|| GetAdmGroupAddFlag(gid, Admin_Root) || GetAdmGroupAddFlag(gid, Admin_RCON)))
 				{
-					ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", group);
+					sPlayerType = group;
 					bGroupFound = true;
 					break;
+				}
+				else if (gid != INVALID_GROUP_ID && GetAdmGroupAddFlag(gid, Admin_Custom1))
+				{
+					sPlayerType = group;
+					bGroupFound = true;
 				}
 			}
 
 			if (!bGroupFound)
 			{
-				if (GetAdminFlag(aid, Admin_Generic))
-				{
-					if(GetAdminFlag(aid, Admin_Root))
-					{
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Community Manager");
-					}
-					else if(GetAdminFlag(aid, Admin_RCON))
-					{
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Server Manager");				
-					}
-					else
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Admin");
-				}
+				if (GetAdminFlag(aid, Admin_Root))
+					sPlayerType = "Community Manager";
+				else if(GetAdminFlag(aid, Admin_RCON))
+					sPlayerType = "Server Manager";
+				else if (GetAdminFlag(aid, Admin_Generic))
+					sPlayerType = "Admin";
 				else if(GetAdminFlag(aid, Admin_Custom1))
-				{
-					if(GetAdminFlag(aid, Admin_Custom4))
-					{
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top25");
-					}
-					else if(GetAdminFlag(aid, Admin_Custom3))
-					{
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP Top50");
-					}
-					else
-					{
-						ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "VIP");
-					}
-				}
+					sPlayerType = "VIP";
 			}
 		}
-		else if(GetAdminFlag(aid, Admin_Custom4))
+
+		// Player Type
+		if (!sPlayerType[0])
 		{
-			ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Top25");
+			if (GetAdminFlag(aid, Admin_Custom5))
+				sPlayerType = "Supporter";
+			else if(GetAdminFlag(aid, Admin_Custom6))
+				sPlayerType = "Member";
+			else
+				sPlayerType = "Player";
 		}
-		else if(GetAdminFlag(aid, Admin_Custom3))
+
+		// Ranking
+		if (!GetAdminFlag(aid, Admin_Root) && !GetAdminFlag(aid, Admin_RCON))
 		{
-			ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Top50");
+			if (GetAdminFlag(aid, Admin_Custom4))
+				StrCat(sPlayerType, sizeof(sPlayerType), " Top25");
+			else if(GetAdminFlag(aid, Admin_Custom3))
+				StrCat(sPlayerType, sizeof(sPlayerType), " Top50");
 		}
-		else if(GetAdminFlag(aid, Admin_Custom5))
-		{
-			ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Supporter");
-		}
-		else if(GetAdminFlag(aid, Admin_Custom6))
-		{
-			ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Member");
-		}
-		else
-		{
-			ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", "Player");
-		}
+
+		ReplaceString(sRawMsg, sizeof(sRawMsg), "{PLAYERTYPE}", sPlayerType);
 	}
 
 	if(StrContains(sRawMsg, "{RANK}"))
