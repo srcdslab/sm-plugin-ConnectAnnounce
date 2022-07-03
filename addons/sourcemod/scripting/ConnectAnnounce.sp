@@ -221,8 +221,7 @@ public Action Command_JoinMsg(int client, int args)
 	else
 	{
 		char sArg[256];
-		int  iLength;
-		iLength = GetCmdArgString(sArg, sizeof(sArg));
+		GetCmdArgString(sArg, sizeof(sArg));
 
 		g_sClientJoinMessage[client] = sArg;
 
@@ -436,6 +435,7 @@ stock Action SQLSetNames(Handle timer)
 {
 	if (!g_bSQLite)
 		SQL_TQuery(g_hDatabase, OnSqlSetNames, "SET NAMES \"UTF8MB4\"");
+	return Plugin_Stop;
 }
 
 stock void OnSqlSetNames(Handle hParent, Handle hChild, const char[] err, any data)
@@ -802,7 +802,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	int client = GetClientFromSerial(serialClient);
 
 	if (client == 0 || IsFakeClient(client))
-		return;
+		return Plugin_Stop;
 
 	if (g_hDatabase_Hlstatsx == null)
 	{
@@ -819,4 +819,5 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 		Format(sQuery, sizeof(sQuery), "SELECT * FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = 'css-ze'", sAuth);
 		SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB, sQuery, GetClientUserId(client));
 	}
+	return Plugin_Stop;
 }
