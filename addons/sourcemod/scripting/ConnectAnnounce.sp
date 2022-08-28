@@ -37,7 +37,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.0",
+	version     = "2.3.1",
 	url         = ""
 }
 
@@ -222,6 +222,20 @@ public Action Command_JoinMsg(int client, int args)
 	{
 		char sArg[256];
 		GetCmdArgString(sArg, sizeof(sArg));
+		
+		ReplaceString(sArg, sizeof(sArg), "%d", "d"); // Fix String formatted incorrectly by adding a new parameter
+		ReplaceString(sArg, sizeof(sArg), "%i", "i"); // https://github.com/srcdslab/sm-plugin-ConnectAnnounce/issues/2
+		ReplaceString(sArg, sizeof(sArg), "%u", "u");
+		ReplaceString(sArg, sizeof(sArg), "%b", "b");
+		ReplaceString(sArg, sizeof(sArg), "%f", "f");
+		ReplaceString(sArg, sizeof(sArg), "%x", "x");
+		ReplaceString(sArg, sizeof(sArg), "%X", "X");
+		ReplaceString(sArg, sizeof(sArg), "%s", "s");
+		ReplaceString(sArg, sizeof(sArg), "%t", "t");
+		ReplaceString(sArg, sizeof(sArg), "%T", "T");
+		ReplaceString(sArg, sizeof(sArg), "%c", "C");
+		ReplaceString(sArg, sizeof(sArg), "%L", "L");
+		ReplaceString(sArg, sizeof(sArg), "%N", "N");
 
 		g_sClientJoinMessage[client] = sArg;
 
