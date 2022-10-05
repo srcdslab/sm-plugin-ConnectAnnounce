@@ -37,7 +37,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.1",
+	version     = "2.3.2",
 	url         = ""
 }
 
@@ -796,6 +796,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		}
 		else
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", "");
+
+		delete regexHEX;
+		delete regexColor;
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
