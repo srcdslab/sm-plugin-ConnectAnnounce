@@ -1,9 +1,9 @@
 #pragma semicolon 1
 
 #include <sourcemod>
-#tryinclude <connect>
 #include <geoip>
 #include <multicolors>
+#tryinclude <connect>
 
 #pragma newdecls required
 
