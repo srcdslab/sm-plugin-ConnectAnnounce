@@ -25,7 +25,12 @@ ConVar g_hCvar_UseHlstatsx;
 
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
+char g_sAuthID[MAXPLAYERS + 1][64];
+char g_sPlayerIP[MAXPLAYERS + 1][64];
+char g_sPlayerName[MAXPLAYERS + 1][64];
 int  g_sClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
+int  iUserSerial[MAXPLAYERS + 1];
+int  iUserID[MAXPLAYERS + 1];
 
 bool g_bSQLite = true;
 
@@ -37,7 +42,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.2",
+	version     = "2.3.3",
 	url         = ""
 }
 
@@ -112,6 +117,22 @@ public void OnConfigsExecuted()
 	}
 }
 
+public void OnClientPutInServer(int client)
+{
+	char sSteamID[64];
+	GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID));
+	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "%s", sSteamID);
+
+	char sIP[64];
+	GetClientIP(client, sIP, sizeof(sIP));
+	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
+
+	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "%N", client);
+
+	iUserSerial[client] = GetClientSerial(client);
+	iUserID[client] = GetClientUserId(client);
+}
+
 public void OnClientPostAdminCheck(int client)
 {
 	char sStorageType[256];
@@ -119,10 +140,7 @@ public void OnClientPostAdminCheck(int client)
 
 	if (StrEqual(sStorageType, "local"))
 	{
-		char sAuth[32];
-		GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
-
-		PrintToChatAll("Auth: %s", sAuth);
+		PrintToChatAll("Auth: %s", g_sAuthID[client]);
 
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
@@ -134,7 +152,7 @@ public void OnClientPostAdminCheck(int client)
 
 		KvRewind(hCustomMessageFile);
 
-		if (KvJumpToKey(hCustomMessageFile, sAuth))
+		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client]))
 		{
 			char sBanned[16];
 			KvGetString(hCustomMessageFile, "banned", sBanned, sizeof(sBanned), "");
@@ -153,7 +171,7 @@ public void OnClientPostAdminCheck(int client)
 			hCustomMessageFile = null;
 		}
 
-		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, GetClientSerial(client));
+		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
 	}
 	else if (StrEqual(sStorageType, "sql"))
 	{
@@ -163,8 +181,13 @@ public void OnClientPostAdminCheck(int client)
 
 public void OnClientDisconnect(int client)
 {
+	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "");
+	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "");
+	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "");
 	g_sClientJoinMessage[client]       = "";
 	g_sClientJoinMessageBanned[client] = -1;
+	iUserSerial[client] = -1;
+	iUserID[client] = -1;
 }
 
 //   .d8888b.   .d88888b.  888b     d888 888b     d888        d8888 888b    888 8888888b.   .d8888b.
@@ -190,9 +213,6 @@ public Action Command_JoinMsg(int client, int args)
 		ReplyToCommand(client, "[ConnectAnnounce] Cannot use command from server console");
 		return Plugin_Handled;
 	}
-
-	char sAuth[32];
-	GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
 
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
@@ -241,7 +261,7 @@ public Action Command_JoinMsg(int client, int args)
 
 		if (StrEqual(sStorageType, "local"))
 		{
-			if (KvJumpToKey(hCustomMessageFile, sAuth, true))
+			if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 				KvSetString(hCustomMessageFile, "message", g_sClientJoinMessage[client]);
 			else
 			{
@@ -283,9 +303,6 @@ public Action Command_ResetJoinMsg(int client, int args)
 		return Plugin_Handled;
 	}
 
-	char sAuth[32];
-	GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
-
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
@@ -301,7 +318,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 
 		KvRewind(hCustomMessageFile);
 
-		if (KvJumpToKey(hCustomMessageFile, sAuth, true))
+		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 			KvSetString(hCustomMessageFile, "message", "reset");
 
 		KvRewind(hCustomMessageFile);
@@ -349,9 +366,6 @@ public Action Command_Ban(int client, int args)
 		return Plugin_Handled;
 	}
 
-	char sAuth[32];
-	GetClientAuthId(iTarget, AuthId_Steam2, sAuth, sizeof(sAuth));
-
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
@@ -369,7 +383,7 @@ public Action Command_Ban(int client, int args)
 
 		char sBannedTime[256];
 		IntToString(g_sClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
-		if (KvJumpToKey(hCustomMessageFile, sAuth, true))
+		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 			KvSetString(hCustomMessageFile, "banned", sBannedTime);
 
 		KvRewind(hCustomMessageFile);
@@ -481,13 +495,9 @@ public void OnSQLTableCreated_Join(Handle hParent, Handle hChild, const char[] e
 
 stock Action SQLSelect_JoinClient(Handle timer, any client)
 {
-	char sClientSteamID[32];
-
-	GetClientAuthId(client, AuthId_Steam2, sClientSteamID, sizeof(sClientSteamID));
-
 	DataPack pack = new DataPack();
 	pack.WriteCell(client);
-	pack.WriteString(sClientSteamID);
+	pack.WriteString(g_sAuthID[client]);
 
 	SQLSelect_Join(INVALID_HANDLE, pack);
 
@@ -506,7 +516,11 @@ stock Action SQLSelect_Join(Handle timer, any data)
 	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
 
 	Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", sClientSteamID);
-	SQL_TQuery(g_hDatabase, OnSQLSelect_Join, sQuery, data, DBPrio_Low);
+	if (g_hDatabase != null)
+		SQL_TQuery(g_hDatabase, OnSQLSelect_Join, sQuery, data, DBPrio_Low);
+	else
+		SetFailState("Database error while checking \"message\" from \"join\" table.");
+
 	return Plugin_Stop;
 }
 
@@ -527,7 +541,7 @@ public void OnSQLSelect_Join(Handle hParent, Handle hChild, const char[] err, an
 		SQL_FetchString(hChild, 0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
 	}
 
-	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, GetClientSerial(client));
+	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
 
 	delete pack;
 }
@@ -570,9 +584,8 @@ stock Action SQLInsertUpdate_JoinClient(Handle timer, any client)
 	char sClientSteamID[32];
 	char sClientName[32];
 
-	GetClientAuthId(client, AuthId_Steam2, sClientSteamID, sizeof(sClientSteamID));
-	GetClientName(client, sClientName, sizeof(sClientName));
-
+	FormatEx(sClientSteamID, sizeof(sClientSteamID), "%s", g_sAuthID[client]);
+	FormatEx(sClientName, sizeof(sClientName), "%s", g_sPlayerName[client]);
 	DataPack pack = new DataPack();
 	pack.WriteCell(client);
 	pack.WriteString(sClientSteamID);
@@ -650,7 +663,7 @@ public void SQLSelect_HlstatsxCB(Handle owner, Handle rs, const char[] error, an
 	}
 	char sQuery[1024];
 	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = 'css-ze' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = 'css-ze' AND playerId = %d	ORDER BY skill DESC", iPlayerId);
-	SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB2, sQuery, GetClientUserId(client));
+	SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
 }
 
 // ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
@@ -663,15 +676,10 @@ public void SQLSelect_HlstatsxCB(Handle owner, Handle rs, const char[] error, an
 public void Announcer(int client, int iRank, bool sendToAll)
 {
 	char        sFinalMessage[MAX_CHAT_LENGTH * 2];
-	static char sIP[16];
-	static char sAuth[32];
 	static char sCountry[32];
-	static char sName[128];
 
 	strcopy(sFinalMessage, sizeof(sFinalMessage), g_sJoinMessageTemplate);
 
-	GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
-	GetClientName(client, sName, sizeof(sName));
 	AdminId aid;
 
 	if (StrContains(sFinalMessage, "{PLAYERTYPE}"))
@@ -755,7 +763,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #if defined _Connect_Included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
-		if (!SteamClientAuthenticated(sAuth))
+		if (!SteamClientAuthenticated(g_sAuthID[client]))
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", " <NoSteam>");
 		else
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
@@ -764,12 +772,12 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	if (StrContains(sFinalMessage, "{STEAMID}"))
 	{
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", sAuth);
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", g_sAuthID[client]);
 	}
 
 	if (StrContains(sFinalMessage, "{NAME}"))
 	{
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", sName);
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", g_sPlayerName[client]);
 	}
 
 	if (StrContains(sFinalMessage, "{COUNTRY}"))
@@ -788,7 +796,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
-		if (GetClientIP(client, sIP, sizeof(sIP)) && GeoipCountry(sIP, sCountry, sizeof(sCountry)) && !StrEqual("", sCountry))
+		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && !StrEqual("", sCountry))
 		{
 			char sBuffer[128];
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
@@ -828,13 +836,11 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	else
 	{
 		static char sAuth[32];
-
-		GetClientAuthId(client, AuthId_Steam2, sAuth, sizeof(sAuth));
-		strcopy(sAuth, sizeof(sAuth), sAuth[8]);
+		strcopy(sAuth, sizeof(sAuth), g_sAuthID[client][8]);
 
 		char sQuery[255];
 		Format(sQuery, sizeof(sQuery), "SELECT * FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = 'css-ze'", sAuth);
-		SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB, sQuery, GetClientUserId(client));
+		SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
 	}
 	return Plugin_Stop;
 }
