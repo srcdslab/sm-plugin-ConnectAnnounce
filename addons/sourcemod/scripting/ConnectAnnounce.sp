@@ -64,15 +64,6 @@ public void OnPluginStart()
 	AutoExecConfig(true);
 }
 
-//----------------------------------------------------------------------------------------------------
-// Purpose:
-//----------------------------------------------------------------------------------------------------
-public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
-{
-	RegPluginLibrary("ConnectAnnounce");
-	return APLRes_Success;
-}
-
 public void OnPluginEnd()
 {
 	if (g_hDatabase != null)
