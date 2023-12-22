@@ -42,7 +42,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.3",
+	version     = "2.3.4",
 	url         = ""
 }
 
@@ -233,7 +233,7 @@ public Action Command_JoinMsg(int client, int args)
 
 	if (args < 1)
 	{
-		if (StrEqual(g_sClientJoinMessage[client], "reset"))
+		if (StrEqual(g_sClientJoinMessage[client], "reset") || strlen(g_sClientJoinMessage[client]) < 1)
 			CPrintToChat(client, "[ConnectAnnounce] No Join Message set! Use sm_joinmsg <your message here> to set one.");
 		else
 			CPrintToChat(client, "[ConnectAnnounce] Your Join Message is: %s", g_sClientJoinMessage[client]);
