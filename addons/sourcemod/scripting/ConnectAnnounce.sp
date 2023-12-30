@@ -19,14 +19,14 @@ char g_sCustomMessageFile[128];
 /* Database connection state */
 enum DatabaseState
 {
-	DatabaseState_None = 0,
+	DatabaseState_Disconnected = 0,
 	DatabaseState_Wait,
 	DatabaseState_Connecting,
 	DatabaseState_Connected,
 }
 DatabaseState g_DatabaseState;
 
-Handle   g_hDatabase = null;
+Database g_hDatabase;
 Database g_hDatabase_Hlstatsx;
 
 ConVar g_hCvar_Enabled;
@@ -87,14 +87,17 @@ public void OnMapEnd()
 {
 	// Clean up on map end just so we can start a fresh connection when we need it later.
 	// Also it is necessary for using SQL_SetCharset
-	if (g_hDatabase)
+	if (g_hDatabase != null)
+	{
 		delete g_hDatabase;
+		g_hDatabase = null;
+	}
 
 	if (g_hDatabase_Hlstatsx != null)
+	{
 		delete g_hDatabase_Hlstatsx;
-
-	g_hDatabase = null;
-	g_hDatabase_Hlstatsx = null;
+		g_hDatabase_Hlstatsx = null;
+	}
 }
 
 public void OnConfigsExecuted()
@@ -413,7 +416,7 @@ public Action Command_Ban(int client, int args)
 			KvSetString(hCustomMessageFile, "banned", sBannedTime);
 		else
 		{
-			SetFailState("[ConnectAnnounce] Could not find/create Key Value!");
+			LogError("[ConnectAnnounce] Could not find/create Key Value!");
 			return Plugin_Handled;
 		}
 
@@ -430,9 +433,9 @@ public Action Command_Ban(int client, int args)
 	}
 
 	if (g_sClientJoinMessageBanned[client] == -1)
-		CPrintToChat(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
 	else
-		CPrintToChat(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
 	return Plugin_Handled;
 }
 
@@ -457,7 +460,10 @@ stock bool DB_Connect()
 {
 	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
 
-	if (g_hDatabase)
+	if (!SQL_CheckConfig(DATABASE_NAME))
+  		SetFailState("Could not find \"%s\" entry in databases.cfg.", DATABASE_NAME);
+
+	if (g_hDatabase != null && g_DatabaseState == DatabaseState_Connected)
 		return true;
 
 	// 100k connections in a minute is bad idea..
@@ -467,7 +473,7 @@ stock bool DB_Connect()
 	if (g_DatabaseState != DatabaseState_Connecting)
 	{
 		g_DatabaseState = DatabaseState_Connecting;
-		g_iConnectLock = ++g_iSequence;
+		g_iConnectLock = g_iSequence++;
 		Database.Connect(GotDatabase, DATABASE_NAME, g_iConnectLock);
 	}
 
@@ -476,6 +482,15 @@ stock bool DB_Connect()
 
 public void GotDatabase(Database db, const char[] error, any data)
 {
+	// See if the connection is valid.
+	if (db == null)
+	{
+		LogError("Connecting to database \"%s\" failed: %s", DATABASE_NAME, error);
+		return;
+	}
+
+	LogMessage("Connected to database.");
+
 	//PrintToServer("GotDatabase(data: %d, lock: %d, g_h: %d, db: %d)", data, g_iConnectLock, g_hDatabase, db);
 
 	// If this happens to be an old connection request, ignore it.
@@ -498,20 +513,49 @@ public void GotDatabase(Database db, const char[] error, any data)
 	g_DatabaseState = DatabaseState_Connected;
 	g_hDatabase = db;
 
-	// See if the connection is valid.
-	if (g_hDatabase)
-		LogMessage("Connected to database.");
-	else
+	DB_SetNames(db);
+	DB_CreateTable(db);
+}
+
+stock bool DB_Conn_Lost(DBResultSet db)
+{
+	if (db == null)
 	{
-		LogError("Connecting to database failed: %s", error);
-		return;
+		if (g_hDatabase != null)
+		{
+			LogError("Lost connection to DB. Reconnect after delay.");
+			delete g_hDatabase;
+			g_hDatabase = null;
+		}
+
+		if (g_DatabaseState != DatabaseState_Wait && g_DatabaseState != DatabaseState_Connecting)
+		{
+			g_DatabaseState = DatabaseState_Wait;
+			CreateTimer(RetryTime, Timer_StopWait, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+
+		return true;
 	}
 
-	// Set character set to UTF8MB4 in the database
+	return false;
+}
+
+stock void DB_Reconnect()
+{
+	g_DatabaseState = DatabaseState_Disconnected;
+	DB_Connect();
+}
+
+stock void DB_SetNames(Database db)
+{
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	Format(sQuery, sizeof(sQuery), "SET NAMES \"UTF8MB4\"");
 	db.Query(Query_ErrorCheck, sQuery);
+}
 
+stock void DB_CreateTable(Database db)
+{
+	char sQuery[MAX_SQL_QUERY_LENGTH];
 	if (g_bSQLite)
 		FormatEx(sQuery, sizeof(sQuery), 
 			"CREATE TABLE IF NOT EXISTS `join` ( \
@@ -534,29 +578,6 @@ public void GotDatabase(Database db, const char[] error, any data)
 	db.Query(Query_ErrorCheck, sQuery);
 }
 
-stock bool DB_Conn_Lost(DBResultSet db)
-{
-	if (db == null)
-	{
-		if (g_hDatabase != null)
-		{
-			LogError("Lost connection to DB. Reconnect after delay.");
-			delete g_hDatabase;
-			g_hDatabase = null;
-		}
-
-		if (g_DatabaseState != DatabaseState_Wait)
-		{
-			g_DatabaseState = DatabaseState_Wait;
-			CreateTimer(RetryTime, Timer_StopWait, _, TIMER_FLAG_NO_MAPCHANGE);
-		}
-
-		return true;
-	}
-
-	return false;
-}
-
 public void Query_ErrorCheck(Database db, DBResultSet results, const char[] error, any data)
 {
 	if (DB_Conn_Lost(results) || error[0])
@@ -565,8 +586,7 @@ public void Query_ErrorCheck(Database db, DBResultSet results, const char[] erro
 
 public Action Timer_StopWait(Handle timer, any data)
 {
-	g_DatabaseState = DatabaseState_None;
-	DB_Connect();
+	DB_Reconnect();
 	return Plugin_Continue;
 }
 
@@ -576,12 +596,12 @@ stock Action SQLSelect_JoinClient(Handle timer, any client)
 	pack.WriteCell(client);
 	pack.WriteString(g_sAuthID[client]);
 
-	SQLSelect_Join(INVALID_HANDLE, pack);
+	SQLSelect_Join(pack);
 
 	return Plugin_Stop;
 }
 
-stock Action SQLSelect_Join(Handle timer, any data)
+stock void SQLSelect_Join(any data)
 {
 	DataPack pack = view_as<DataPack>(data);
 	pack.Reset();
@@ -589,34 +609,37 @@ stock Action SQLSelect_Join(Handle timer, any data)
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	char sClientSteamID[32];
 
-	int client = pack.ReadCell();
+	pack.ReadCell();
 	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
-
-	delete pack;
 
 	if (DB_Connect())
 	{
 		Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", sClientSteamID);
+		g_hDatabase.Query(OnSQLSelect_Join, sQuery, data);
+	}
+}
 
-		DBResultSet result = SQL_Query(g_hDatabase, sQuery);
-		if (DB_Conn_Lost(result) || result == null)
-		{
-			char error[1024];
-			SQL_GetError(g_hDatabase, error, sizeof(error));
-			LogError("An error occurred while checking \"message\" from \"join\" table.. (%s)", error);
-			delete result;
-			return Plugin_Stop;
-		}
-		else if (result.FetchRow())
-		{
-			result.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
-			delete result;
-		}
+stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+
+	int client = pack.ReadCell();
+	delete pack;
+
+	if (DB_Conn_Lost(results) || error[0] != '\0')
+	{
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		return;
+	}
+
+	if (results.FetchRow())
+	{
+		results.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
+		delete results;
 	}
 
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
-
-	return Plugin_Stop;
 }
 
 stock Action SQLInsertUpdate_Join(Handle timer, any data)
@@ -631,39 +654,50 @@ stock Action SQLInsertUpdate_Join(Handle timer, any data)
 	char sMessage[MAX_CHAT_LENGTH];
 	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
 
+	pack.ReadCell();
+	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
+	pack.ReadString(sClientName, sizeof(sClientName));
+	pack.ReadString(sMessage, sizeof(sMessage));
+
+	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
+	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
+
+	Format(sQuery, sizeof(sQuery),
+		"INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
+		sClientSteamID, sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+	
+	g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, data);
+
+	return Plugin_Stop;
+}
+
+stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[] error, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+
+	char sClientSteamID[32];
+	char sClientName[32];
+	char sMessage[MAX_CHAT_LENGTH];
+	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+
 	int client = pack.ReadCell();
 	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
 	pack.ReadString(sClientName, sizeof(sClientName));
 	pack.ReadString(sMessage, sizeof(sMessage));
 	delete pack;
 
-	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
 	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
 
-	Format(
-		sQuery,
-		sizeof(sQuery),
-		"INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-		sClientSteamID,
-		sClientNameEscaped,
-		sMessageEscaped,
-		sClientNameEscaped,
-		sMessageEscaped);
-
-	DBResultSet result = SQL_Query(g_hDatabase, sQuery);
-	if (DB_Conn_Lost(result) || result == null)
+	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
-		char error[1024];
-		SQL_GetError(g_hDatabase, error, sizeof(error));
-		LogError("An error occurred while inserting a join message. (%s)", error);
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		CPrintToChat(client, "[ConnectAnnounce] An error occurred while inserting a join message.");
 	}
 	else
 		CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", sMessageEscaped);
 
-	delete result;
-
-	return Plugin_Stop;
+	delete results;
 }
 
 stock Action SQLInsertUpdate_JoinClient(Handle timer, any client)
@@ -716,7 +750,7 @@ public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] 
 
 	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
-		LogError("Database Error: null result");
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		return;
 	}
 
