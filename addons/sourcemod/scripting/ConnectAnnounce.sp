@@ -533,7 +533,7 @@ stock bool DB_Conn_Lost(DBResultSet db)
 		if (g_DatabaseState != DatabaseState_Wait && g_DatabaseState != DatabaseState_Connecting)
 		{
 			g_DatabaseState = DatabaseState_Wait;
-			CreateTimer(RetryTime, Timer_DBReconnect, _, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(RetryTime, TimerDB_Reconnect, _, TIMER_FLAG_NO_MAPCHANGE);
 		}
 
 		return true;
@@ -564,17 +564,23 @@ stock void DB_SetNames(Database db)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			DB_SetNames(db);
+			CreateTimer(1.2 * retries, TimerDB_SetNames, db, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 		}
 		else
 		{
 			LogError("Failed to connect to database after %d retries, aborting", retries);
 		}
-
 	}
 
 	retries = 0;
+}
+
+public Action TimerDB_SetNames(Handle timer, any data)
+{
+	Database db = view_as<Database>(data);
+	DB_SetNames(db);
+	return Plugin_Continue;
 }
 
 stock void DB_CreateTable(Database db)
@@ -611,17 +617,23 @@ stock void DB_CreateTable(Database db)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			DB_CreateTable(db);
+			CreateTimer(1.2 * retries, TimerDB_CreateTable, db, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 		}
 		else
 		{
 			LogError("Failed to connect to database after %d retries, aborting", retries);
 		}
-
 	}
 
 	retries = 0;
+}
+
+public Action TimerDB_CreateTable(Handle timer, any data)
+{
+	Database db = view_as<Database>(data);
+	DB_CreateTable(db);
+	return Plugin_Continue;
 }
 
 public void Query_ErrorCheck(Database db, DBResultSet results, const char[] error, any data)
@@ -630,7 +642,7 @@ public void Query_ErrorCheck(Database db, DBResultSet results, const char[] erro
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 }
 
-public Action Timer_DBReconnect(Handle timer, any data)
+public Action TimerDB_Reconnect(Handle timer, any data)
 {
 	DB_Reconnect();
 	return Plugin_Continue;
@@ -667,7 +679,7 @@ stock void SQLSelect_Join(any data)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			SQLSelect_Join(data);
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, data, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 		}
 		else
@@ -675,10 +687,17 @@ stock void SQLSelect_Join(any data)
 			LogError("Failed to connect to database after %d retries, aborting", retries);
 			delete pack;
 		}
-
 	}
 
 	retries = 0;
+}
+
+public Action TimerDB_SelectJoin(Handle timer, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+	SQLSelect_Join(pack);
+	return Plugin_Continue;
 }
 
 stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error, any data)
@@ -735,7 +754,7 @@ stock void SQLInsertUpdate_Join(any data)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			SQLInsertUpdate_Join(data);
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, data, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 		}
 		else
@@ -746,6 +765,14 @@ stock void SQLInsertUpdate_Join(any data)
 	}
 
 	retries = 0;
+}
+
+public Action TimerDB_InsertUpdateJoin(Handle timer, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+	SQLInsertUpdate_Join(pack);
+	return Plugin_Continue;
 }
 
 stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[] error, any data)
