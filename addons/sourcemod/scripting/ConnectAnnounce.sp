@@ -16,10 +16,21 @@
 char g_sDataFile[128];
 char g_sCustomMessageFile[128];
 
-Handle   g_hDatabase = null;
+/* Database connection state */
+enum DatabaseState
+{
+	DatabaseState_Disconnected = 0,
+	DatabaseState_Wait,
+	DatabaseState_Connecting,
+	DatabaseState_Connected,
+}
+DatabaseState g_DatabaseState;
+
+Database g_hDatabase;
 Database g_hDatabase_Hlstatsx;
 
 ConVar g_hCvar_Enabled;
+ConVar g_cvQueryRetry;
 ConVar g_hCvar_StorageType;
 ConVar g_hCvar_UseHlstatsx;
 
@@ -31,6 +42,10 @@ char g_sPlayerName[MAXPLAYERS + 1][64];
 int  g_sClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
 int  iUserSerial[MAXPLAYERS + 1];
 int  iUserID[MAXPLAYERS + 1];
+int  g_iConnectLock = 0;
+int  g_iSequence = 0;
+
+float RetryTime = 15.0;
 
 bool g_bSQLite = true;
 
@@ -51,9 +66,12 @@ public Plugin myinfo =
 //----------------------------------------------------------------------------------------------------
 public void OnPluginStart()
 {
+	LoadTranslations("common.phrases");
+
 	g_hCvar_Enabled     = CreateConVar("sm_connect_announce", "1", "Should the plugin be enabled ?", FCVAR_NONE, true, 0.0, true, 1.0);
-	g_hCvar_StorageType = CreateConVar("sm_connect_announce_storage", "sql", "Storage type used for connect messages [mysql, local]", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_hCvar_StorageType = CreateConVar("sm_connect_announce_storage", "sql", "Storage type used for connect messages [sql, local]", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_hCvar_UseHlstatsx = CreateConVar("sm_connect_announce_hlstatsx", "0", "Add hlstatsx informations on player connection?", FCVAR_NONE, true, 0.0, true, 1.0);
+	g_cvQueryRetry 		= CreateConVar("sm_connect_announce_query_retry", "5", "How many times should the plugin retry after a fail-to-run query?", FCVAR_NONE, true, 0.0, false, 0.0);
 
 	RegAdminCmd("sm_joinmsg", Command_JoinMsg, ADMFLAG_CUSTOM1, "Sets a custom message which will be shown upon connecting to the server");
 	RegAdminCmd("sm_resetjoinmsg", Command_ResetJoinMsg, ADMFLAG_CUSTOM1, "Resets your custom connect message");
@@ -64,12 +82,24 @@ public void OnPluginStart()
 	AutoExecConfig(true);
 }
 
-public void OnPluginEnd()
+//----------------------------------------------------------------------------------------------------
+// Purpose:
+//----------------------------------------------------------------------------------------------------
+public void OnMapEnd()
 {
+	// Clean up on map end just so we can start a fresh connection when we need it later.
+	// Also it is necessary for using SQL_SetCharset
 	if (g_hDatabase != null)
+	{
 		delete g_hDatabase;
+		g_hDatabase = null;
+	}
+
 	if (g_hDatabase_Hlstatsx != null)
+	{
 		delete g_hDatabase_Hlstatsx;
+		g_hDatabase_Hlstatsx = null;
+	}
 }
 
 public void OnConfigsExecuted()
@@ -85,7 +115,7 @@ public void OnConfigsExecuted()
 
 	if (StrEqual(sStorageType, "sql"))
 	{
-		SQLInitialize();
+		DB_Connect();
 	}
 
 	if (GetConVarBool(g_hCvar_UseHlstatsx))
@@ -175,7 +205,7 @@ public void OnClientPostAdminCheck(int client)
 	}
 	else if (StrEqual(sStorageType, "sql"))
 	{
-		SQLSelect_JoinClient(INVALID_HANDLE, client);
+		SQLSelect_JoinClient(client);
 	}
 }
 
@@ -276,7 +306,7 @@ public Action Command_JoinMsg(int client, int args)
 		}
 		else if (StrEqual(sStorageType, "sql"))
 		{
-			SQLInsertUpdate_JoinClient(INVALID_HANDLE, client);
+			SQLInsertUpdate_JoinClient(client);
 		}
 	}
 
@@ -331,7 +361,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 	else if (StrEqual(sStorageType, "sql"))
 	{
 		g_sClientJoinMessage[client] = "reset";
-		SQLInsertUpdate_JoinClient(INVALID_HANDLE, client);
+		SQLInsertUpdate_JoinClient(client);
 	}
 
 	CPrintToChat(client, "{green}[ConnectAnnounce] {white}Your Join Message got reset.");
@@ -383,8 +413,14 @@ public Action Command_Ban(int client, int args)
 
 		char sBannedTime[256];
 		IntToString(g_sClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
+
 		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 			KvSetString(hCustomMessageFile, "banned", sBannedTime);
+		else
+		{
+			LogError("[ConnectAnnounce] Could not find/create Key Value!");
+			return Plugin_Handled;
+		}
 
 		KvRewind(hCustomMessageFile);
 
@@ -399,9 +435,9 @@ public Action Command_Ban(int client, int args)
 	}
 
 	if (g_sClientJoinMessageBanned[client] == -1)
-		CPrintToChat(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
 	else
-		CPrintToChat(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
 	return Plugin_Handled;
 }
 
@@ -422,141 +458,283 @@ public Action Command_Announce(int client, int args)
 // #     # #    #  #
 //  #####   #### # #######
 
-stock void SQLInitialize()
+stock bool DB_Connect()
 {
-	if (g_hDatabase != null)
-		delete g_hDatabase;
+	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
 
-	if (SQL_CheckConfig(DATABASE_NAME))
-		SQL_TConnect(OnSQLConnected, DATABASE_NAME);
-	else
-		SetFailState("Could not find \"%s\" entry in databases.cfg.", DATABASE_NAME);
+	if (g_hDatabase != null && g_DatabaseState == DatabaseState_Connected)
+		return true;
+
+	// 100k connections in a minute is bad idea..
+	if (g_DatabaseState == DatabaseState_Wait)
+		return false;
+
+	if (g_DatabaseState != DatabaseState_Connecting)
+	{
+		if (!SQL_CheckConfig(DATABASE_NAME))
+  			SetFailState("Could not find \"%s\" entry in databases.cfg.", DATABASE_NAME);
+
+		g_DatabaseState = DatabaseState_Connecting;
+		g_iConnectLock = g_iSequence++;
+		Database.Connect(GotDatabase, DATABASE_NAME, g_iConnectLock);
+	}
+
+	return false;
 }
 
-stock void OnSQLConnected(Handle hParent, Handle hChild, const char[] err, any data)
+public void GotDatabase(Database db, const char[] error, any data)
 {
-	if (hChild == null)
+	// See if the connection is valid.
+	if (db == null)
 	{
-		SetFailState("Failed to connect to database \"%s\". (%s)", DATABASE_NAME, err);
+		LogError("Connecting to database \"%s\" failed: %s", DATABASE_NAME, error);
+		return;
+	}
+
+	LogMessage("Connected to database.");
+
+	//PrintToServer("GotDatabase(data: %d, lock: %d, g_h: %d, db: %d)", data, g_iConnectLock, g_hDatabase, db);
+
+	// If this happens to be an old connection request, ignore it.
+	if (data != g_iConnectLock || (g_hDatabase != null && g_DatabaseState == DatabaseState_Connected))
+	{
+		if (db)
+			delete db;
 		return;
 	}
 
 	char sDriver[16];
-	g_hDatabase = CloneHandle(hChild);
-	SQL_GetDriverIdent(hParent, sDriver, sizeof(sDriver));
-
-	SQL_LockDatabase(g_hDatabase);
+	SQL_GetDriverIdent(g_hDatabase, sDriver, sizeof(sDriver));
 
 	if (!strncmp(sDriver, "my", 2, false))
 		g_bSQLite = false;
 	else
 		g_bSQLite = true;
 
-	SQLSetNames(INVALID_HANDLE);
+	g_iConnectLock = 0;
+	g_DatabaseState = DatabaseState_Connected;
+	g_hDatabase = db;
 
-	SQLTableCreation_Join(INVALID_HANDLE);
-
-	SQL_UnlockDatabase(g_hDatabase);
+	DB_SetNames(db);
+	DB_CreateTable(db);
 }
 
-stock Action SQLSetNames(Handle timer)
+stock bool DB_Conn_Lost(DBResultSet db)
 {
-	if (!g_bSQLite)
-		SQL_TQuery(g_hDatabase, OnSqlSetNames, "SET NAMES \"UTF8MB4\"");
-	return Plugin_Stop;
-}
-
-stock void OnSqlSetNames(Handle hParent, Handle hChild, const char[] err, any data)
-{
-	if (hChild == null)
+	if (db == null)
 	{
-		SetFailState("Database error while setting names as utf8. (%s)", err);
-		return;
+		if (g_hDatabase != null)
+		{
+			LogError("Lost connection to DB. Reconnect after delay.");
+			delete g_hDatabase;
+			g_hDatabase = null;
+		}
+
+		if (g_DatabaseState != DatabaseState_Wait && g_DatabaseState != DatabaseState_Connecting)
+		{
+			g_DatabaseState = DatabaseState_Wait;
+			CreateTimer(RetryTime, TimerDB_Reconnect, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+
+		return true;
 	}
+
+	return false;
 }
 
-stock Action SQLTableCreation_Join(Handle timer)
+stock void DB_Reconnect()
 {
-	if (g_bSQLite)
-		SQL_TQuery(g_hDatabase, OnSQLTableCreated_Join, "CREATE TABLE IF NOT EXISTS `join` (`steamid` TEXT NOT NULL, `name` TEXT NOT NULL, `message` TEXT, PRIMARY KEY(`steamid`));");
+	g_DatabaseState = DatabaseState_Disconnected;
+	DB_Connect();
+}
+
+stock void DB_SetNames(Database db)
+{
+	static int retries = 0;
+	char sQuery[MAX_SQL_QUERY_LENGTH];
+	Format(sQuery, sizeof(sQuery), "SET NAMES \"UTF8MB4\"");
+
+	if (DB_Connect())
+	{
+		db.Query(Query_ErrorCheck, sQuery);
+	}
 	else
-		SQL_TQuery(g_hDatabase, OnSQLTableCreated_Join, "CREATE TABLE IF NOT EXISTS `join` (`steamid` VARCHAR(32) NOT NULL, `name` VARCHAR(32) NOT NULL, `message` VARCHAR(256), PRIMARY KEY(`steamid`)) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;");
-	return Plugin_Stop;
-}
-
-public void OnSQLTableCreated_Join(Handle hParent, Handle hChild, const char[] err, any data)
-{
-	if (hChild == null)
 	{
-		SetFailState("Database error while creating/checking for \"join\" table. (%s)", err);
-		return;
+		if (retries < g_cvQueryRetry.IntValue)
+		{
+			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
+			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
+			CreateTimer(1.2 * retries, TimerDB_SetNames, db, TIMER_FLAG_NO_MAPCHANGE);
+			retries++;
+			return;
+		}
+		else
+		{
+			LogError("Failed to connect to database after %d retries, aborting", retries);
+		}
 	}
+
+	retries = 0;
 }
 
-stock Action SQLSelect_JoinClient(Handle timer, any client)
+public Action TimerDB_SetNames(Handle timer, any data)
+{
+	Database db = view_as<Database>(data);
+	DB_SetNames(db);
+	return Plugin_Continue;
+}
+
+stock void DB_CreateTable(Database db)
+{
+	static int retries = 0;
+	char sQuery[MAX_SQL_QUERY_LENGTH];
+
+	if (g_bSQLite)
+		FormatEx(sQuery, sizeof(sQuery), 
+			"CREATE TABLE IF NOT EXISTS `join` ( \
+			`steamid` TEXT NOT NULL, \
+			`name` TEXT NOT NULL, \
+			`message` TEXT, \
+			PRIMARY KEY(`steamid`) \
+			)"
+		);
+	else
+		FormatEx(sQuery, sizeof(sQuery),
+			"CREATE TABLE IF NOT EXISTS `join` ( \
+			`steamid` VARCHAR(32) NOT NULL, \
+			`name` VARCHAR(32) NOT NULL, \
+			`message` VARCHAR(256), \
+			PRIMARY KEY(`steamid`) \
+			);"
+		);
+
+	if (DB_Connect())
+	{
+		db.Query(Query_ErrorCheck, sQuery);
+	}
+	else
+	{
+		if (retries < g_cvQueryRetry.IntValue)
+		{
+			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
+			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
+			CreateTimer(1.2 * retries, TimerDB_CreateTable, db, TIMER_FLAG_NO_MAPCHANGE);
+			retries++;
+			return;
+		}
+		else
+		{
+			LogError("Failed to connect to database after %d retries, aborting", retries);
+		}
+	}
+
+	retries = 0;
+}
+
+public Action TimerDB_CreateTable(Handle timer, any data)
+{
+	Database db = view_as<Database>(data);
+	DB_CreateTable(db);
+	return Plugin_Continue;
+}
+
+public void Query_ErrorCheck(Database db, DBResultSet results, const char[] error, any data)
+{
+	if (DB_Conn_Lost(results) || error[0])
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+}
+
+public Action TimerDB_Reconnect(Handle timer, any data)
+{
+	DB_Reconnect();
+	return Plugin_Continue;
+}
+
+stock void SQLSelect_JoinClient(any client)
 {
 	DataPack pack = new DataPack();
 	pack.WriteCell(client);
 	pack.WriteString(g_sAuthID[client]);
 
-	SQLSelect_Join(INVALID_HANDLE, pack);
-
-	return Plugin_Stop;
+	SQLSelect_Join(pack);
 }
 
-stock Action SQLSelect_Join(Handle timer, any data)
+stock void SQLSelect_Join(any data)
 {
+	static int retries = 0;
+	char sClientSteamID[32], sQuery[MAX_SQL_QUERY_LENGTH];
+
 	DataPack pack = view_as<DataPack>(data);
 	pack.Reset();
-
-	char sQuery[MAX_SQL_QUERY_LENGTH];
-	char sClientSteamID[32];
-
 	pack.ReadCell();
 	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
 
 	Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", sClientSteamID);
-	if (g_hDatabase != null)
-		SQL_TQuery(g_hDatabase, OnSQLSelect_Join, sQuery, data, DBPrio_Low);
-	else
-		SetFailState("Database error while checking \"message\" from \"join\" table.");
 
-	return Plugin_Stop;
+	if (DB_Connect())
+	{
+		g_hDatabase.Query(OnSQLSelect_Join, sQuery, data);
+	}
+	else
+	{
+		if (retries < g_cvQueryRetry.IntValue)
+		{
+			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
+			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, data, TIMER_FLAG_NO_MAPCHANGE);
+			retries++;
+			return;
+		}
+		else
+		{
+			LogError("Failed to connect to database after %d retries, aborting", retries);
+			delete pack;
+		}
+	}
+
+	retries = 0;
 }
 
-public void OnSQLSelect_Join(Handle hParent, Handle hChild, const char[] err, any data)
+public Action TimerDB_SelectJoin(Handle timer, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+	SQLSelect_Join(pack);
+	return Plugin_Continue;
+}
+
+stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error, any data)
 {
 	DataPack pack = view_as<DataPack>(data);
 	pack.Reset();
 
 	int client = pack.ReadCell();
+	delete pack;
 
-	if (hChild == null)
+	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
-		LogError("An error occurred while querying the database for the join message. (%s)", err);
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		return;
 	}
-	else if (SQL_FetchRow(hChild))
-	{
-		SQL_FetchString(hChild, 0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
-	}
+
+	if (results.FetchRow())
+		results.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
+
+	delete results;
 
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
-
-	delete pack;
 }
 
-stock Action SQLInsertUpdate_Join(Handle timer, any data)
+stock void SQLInsertUpdate_Join(any data)
 {
+	static int retries = 0;
+
 	DataPack pack = view_as<DataPack>(data);
 	pack.Reset();
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	char sClientSteamID[32];
-	char sClientName[32];
-	char sClientNameEscaped[32];
-	char sMessage[MAX_CHAT_LENGTH];
-	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+	char sClientSteamID[32], sClientName[32], sClientNameEscaped[32];
+	char sMessage[MAX_CHAT_LENGTH], sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
 
 	pack.ReadCell();
 	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
@@ -566,20 +744,72 @@ stock Action SQLInsertUpdate_Join(Handle timer, any data)
 	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
 	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
 
-	Format(
-		sQuery,
-		sizeof(sQuery),
-		"INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-		sClientSteamID,
-		sClientNameEscaped,
-		sMessageEscaped,
-		sClientNameEscaped,
-		sMessageEscaped);
-	SQL_TQuery(g_hDatabase, OnSQLInsertUpdate_Join, sQuery, data);
-	return Plugin_Stop;
+	Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
+			sClientSteamID, sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+
+	if (DB_Connect())
+	{
+		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, data);
+	}
+	else
+	{
+		if (retries < g_cvQueryRetry.IntValue)
+		{
+			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
+			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, data, TIMER_FLAG_NO_MAPCHANGE);
+			retries++;
+			return;
+		}
+		else
+		{
+			LogError("Failed to connect to database after %d retries, aborting", retries);
+			delete pack;
+		}
+	}
+
+	retries = 0;
 }
 
-stock Action SQLInsertUpdate_JoinClient(Handle timer, any client)
+public Action TimerDB_InsertUpdateJoin(Handle timer, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+	SQLInsertUpdate_Join(pack);
+	return Plugin_Continue;
+}
+
+stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[] error, any data)
+{
+	DataPack pack = view_as<DataPack>(data);
+	pack.Reset();
+
+	char sClientSteamID[32];
+	char sClientName[32];
+	char sMessage[MAX_CHAT_LENGTH];
+	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+
+	int client = pack.ReadCell();
+	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
+	pack.ReadString(sClientName, sizeof(sClientName));
+	pack.ReadString(sMessage, sizeof(sMessage));
+	delete pack;
+
+	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
+
+	if (DB_Conn_Lost(results) || error[0] != '\0')
+	{
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		CPrintToChat(client, "[ConnectAnnounce] An error occurred while saving your join message, please try again later.");
+		return;
+	}
+
+	CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", sMessageEscaped);
+
+	delete results;
+}
+
+stock void SQLInsertUpdate_JoinClient(any client)
 {
 	char sClientSteamID[32];
 	char sClientName[32];
@@ -592,33 +822,17 @@ stock Action SQLInsertUpdate_JoinClient(Handle timer, any client)
 	pack.WriteString(sClientName);
 	pack.WriteString(g_sClientJoinMessage[client]);
 
-	SQLInsertUpdate_Join(INVALID_HANDLE, pack);
-
-	return Plugin_Stop;
+	SQLInsertUpdate_Join(pack);
 }
 
-public void OnSQLInsertUpdate_Join(Handle hParent, Handle hChild, const char[] err, any data)
+public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[] error, any data)
 {
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-
-	int  client = pack.ReadCell();
-	char sClientJoinMessage[MAX_CHAT_LENGTH];
-	pack.Position = view_as<DataPackPos>(3);
-	pack.ReadString(sClientJoinMessage, sizeof(sClientJoinMessage));
-
-	if (hChild == null)
+	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
-		LogError("An error occurred while inserting a join message. (%s)", err);
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		return;
 	}
 
-	CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", sClientJoinMessage);
-
-	delete pack;
-}
-
-public void SQLSelect_HlstatsxCB2(Handle owner, Handle rs, const char[] error, any data)
-{
 	int client = 0;
 
 	if ((client = GetClientOfUserId(data)) == 0)
@@ -627,18 +841,21 @@ public void SQLSelect_HlstatsxCB2(Handle owner, Handle rs, const char[] error, a
 	}
 
 	int iRank = -1;
-	if (SQL_GetRowCount(rs) > 0)
+	if (results.RowCount > 0)
 	{
 		int iField;
 
-		SQL_FetchRow(rs);
-		SQL_FieldNameToNum(rs, "rank", iField);
-		iRank = SQL_FetchInt(rs, iField);
+		results.FetchRow();
+		results.FieldNameToNum("rank", iField);
+		iRank = results.FetchInt(iField);
 	}
+
+	delete results;
+
 	Announcer(client, iRank, true);
 }
 
-public void SQLSelect_HlstatsxCB(Handle owner, Handle rs, const char[] error, any data)
+public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] error, any data)
 {
 	int client = 0;
 
@@ -647,23 +864,26 @@ public void SQLSelect_HlstatsxCB(Handle owner, Handle rs, const char[] error, an
 		return;
 	}
 
-	if (rs == null)
+	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
-		LogError("Database Error: null result");
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		return;
 	}
 
 	int iPlayerId = -1;
-	if (SQL_GetRowCount(rs) > 0)
+	if (results.RowCount > 0)
 	{
 		int iField;
-		SQL_FetchRow(rs);
-		SQL_FieldNameToNum(rs, "playerId", iField);
-		iPlayerId = SQL_FetchInt(rs, iField);
+		results.FetchRow();
+		results.FieldNameToNum("playerId", iField);
+		iPlayerId = results.FetchInt(iField);
 	}
-	char sQuery[1024];
+
+	char sQuery[MAX_SQL_QUERY_LENGTH];
 	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = 'css-ze' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = 'css-ze' AND playerId = %d	ORDER BY skill DESC", iPlayerId);
-	SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
+	g_hDatabase_Hlstatsx.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
+
+	delete results;
 }
 
 // ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
@@ -840,7 +1060,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 
 		char sQuery[255];
 		Format(sQuery, sizeof(sQuery), "SELECT * FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = 'css-ze'", sAuth);
-		SQL_TQuery(g_hDatabase_Hlstatsx, SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
+		g_hDatabase_Hlstatsx.Query(SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
 	}
 	return Plugin_Stop;
 }
