@@ -566,6 +566,7 @@ stock void DB_SetNames(Database db)
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
 			CreateTimer(1.2 * retries, TimerDB_SetNames, db, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
+			return;
 		}
 		else
 		{
@@ -619,6 +620,7 @@ stock void DB_CreateTable(Database db)
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
 			CreateTimer(1.2 * retries, TimerDB_CreateTable, db, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
+			return;
 		}
 		else
 		{
@@ -681,6 +683,7 @@ stock void SQLSelect_Join(any data)
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
 			CreateTimer(1.2 * retries, TimerDB_SelectJoin, data, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
+			return;
 		}
 		else
 		{
@@ -756,6 +759,7 @@ stock void SQLInsertUpdate_Join(any data)
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
 			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, data, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
+			return;
 		}
 		else
 		{
