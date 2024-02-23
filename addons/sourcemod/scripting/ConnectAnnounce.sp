@@ -3,7 +3,10 @@
 #include <sourcemod>
 #include <geoip>
 #include <multicolors>
+
+#undef REQUIRE_EXTENSIONS
 #tryinclude <connect>
+#define REQUIRE_EXTENSIONS
 
 #pragma newdecls required
 
@@ -57,7 +60,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.4",
+	version     = "2.3.5",
 	url         = ""
 }
 
@@ -983,7 +986,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #if defined _Connect_Included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
-		if (!SteamClientAuthenticated(g_sAuthID[client]))
+		bool bConnect = GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
+
+		if (bConnect && !SteamClientAuthenticated(g_sAuthID[client]))
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", " <NoSteam>");
 		else
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
