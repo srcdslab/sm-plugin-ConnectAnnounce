@@ -60,7 +60,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.5",
+	version     = "2.3.6",
 	url         = ""
 }
 
@@ -690,7 +690,7 @@ stock void SQLSelect_Join(any data)
 		}
 		else
 		{
-			LogError("Failed to connect to database after %d retries, aborting", retries);
+			PrintToServer("[ConnectAnnounce] Failed to connect to database after %d retries, aborting", retries);
 			delete pack;
 		}
 	}
