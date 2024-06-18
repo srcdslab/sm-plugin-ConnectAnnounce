@@ -1024,7 +1024,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
-		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && !StrEqual("", sCountry))
+		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
 		{
 			char sBuffer[128];
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
@@ -1039,7 +1039,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && !StrEqual(g_sClientJoinMessage[client], "reset") && g_sClientJoinMessageBanned[client] == -1)
+	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_sClientJoinMessageBanned[client] == -1)
 	{
 		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
 	}
