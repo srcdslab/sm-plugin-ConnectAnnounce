@@ -60,7 +60,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907",
 	description = "Connect Announcer",
-	version     = "2.3.6",
+	version     = "2.3.7",
 	url         = ""
 }
 
@@ -116,7 +116,7 @@ public void OnConfigsExecuted()
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
-	if (StrEqual(sStorageType, "sql"))
+	if (strcmp(sStorageType, "sql", false) == 0)
 	{
 		DB_Connect();
 	}
@@ -168,10 +168,13 @@ public void OnClientPutInServer(int client)
 
 public void OnClientPostAdminCheck(int client)
 {
+	if (!g_hCvar_Enabled.BoolValue || IsFakeClient(client))
+		return;
+
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
-	if (StrEqual(sStorageType, "local"))
+	if (strcmp(sStorageType, "local", false) == 0)
 	{
 		PrintToChatAll("Auth: %s", g_sAuthID[client]);
 
@@ -190,7 +193,7 @@ public void OnClientPostAdminCheck(int client)
 			char sBanned[16];
 			KvGetString(hCustomMessageFile, "banned", sBanned, sizeof(sBanned), "");
 			int iBannedTime = StringToInt(sBanned, 10);
-			if (StrEqual(sBanned, "true"))
+			if (strcmp(sBanned, "true", false) == 0)
 				g_sClientJoinMessageBanned[client] = 0;
 			else if (sBanned[0] != '\0')
 				g_sClientJoinMessageBanned[client] = iBannedTime;
@@ -206,7 +209,7 @@ public void OnClientPostAdminCheck(int client)
 
 		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
 	}
-	else if (StrEqual(sStorageType, "sql"))
+	else if (strcmp(sStorageType, "sql", false) == 0)
 	{
 		SQLSelect_JoinClient(client);
 	}
@@ -251,7 +254,7 @@ public Action Command_JoinMsg(int client, int args)
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
 	Handle hCustomMessageFile = null;
-	if (StrEqual(sStorageType, "local"))
+	if (strcmp(sStorageType, "local", false) == 0)
 	{
 		hCustomMessageFile = CreateKeyValues("custom_messages");
 
@@ -266,7 +269,7 @@ public Action Command_JoinMsg(int client, int args)
 
 	if (args < 1)
 	{
-		if (StrEqual(g_sClientJoinMessage[client], "reset") || strlen(g_sClientJoinMessage[client]) < 1)
+		if (strcmp(g_sClientJoinMessage[client], "reset", false) == 0 || strlen(g_sClientJoinMessage[client]) < 1)
 			CPrintToChat(client, "[ConnectAnnounce] No Join Message set! Use sm_joinmsg <your message here> to set one.");
 		else
 			CPrintToChat(client, "[ConnectAnnounce] Your Join Message is: %s", g_sClientJoinMessage[client]);
@@ -292,7 +295,7 @@ public Action Command_JoinMsg(int client, int args)
 
 		g_sClientJoinMessage[client] = sArg;
 
-		if (StrEqual(sStorageType, "local"))
+		if (strcmp(sStorageType, "local", false) == 0)
 		{
 			if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 				KvSetString(hCustomMessageFile, "message", g_sClientJoinMessage[client]);
@@ -307,13 +310,13 @@ public Action Command_JoinMsg(int client, int args)
 
 			CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", g_sClientJoinMessage[client]);
 		}
-		else if (StrEqual(sStorageType, "sql"))
+		else if (strcmp(sStorageType, "sql", false) == 0)
 		{
 			SQLInsertUpdate_JoinClient(client);
 		}
 	}
 
-	if (StrEqual(sStorageType, "local"))
+	if (strcmp(sStorageType, "local", false) == 0)
 	{
 		if (hCustomMessageFile != null)
 		{
@@ -339,7 +342,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
-	if (StrEqual(sStorageType, "local"))
+	if (strcmp(sStorageType, "local", false) == 0)
 	{
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
@@ -361,7 +364,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 		if (hCustomMessageFile != null)
 			CloseHandle(hCustomMessageFile);
 	}
-	else if (StrEqual(sStorageType, "sql"))
+	else if (strcmp(sStorageType, "sql", false) == 0)
 	{
 		g_sClientJoinMessage[client] = "reset";
 		SQLInsertUpdate_JoinClient(client);
@@ -402,7 +405,7 @@ public Action Command_Ban(int client, int args)
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
-	if (StrEqual(sStorageType, "local"))
+	if (strcmp(sStorageType, "local", false) == 0)
 	{
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
@@ -432,10 +435,10 @@ public Action Command_Ban(int client, int args)
 		if (hCustomMessageFile != null)
 			CloseHandle(hCustomMessageFile);
 	}
-	else if (StrEqual(sStorageType, "sql"))
-	{
-		// TODO: Implement me
-	}
+	// else if (strcmp(sStorageType, "sql", false) == 0)
+	// {
+	// 	// TODO: Implement me
+	// }
 
 	if (g_sClientJoinMessageBanned[client] == -1)
 		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
@@ -1021,7 +1024,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
-		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && !StrEqual("", sCountry))
+		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
 		{
 			char sBuffer[128];
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
@@ -1036,7 +1039,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && !StrEqual(g_sClientJoinMessage[client], "reset") && g_sClientJoinMessageBanned[client] == -1)
+	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_sClientJoinMessageBanned[client] == -1)
 	{
 		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
 	}
