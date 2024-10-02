@@ -123,47 +123,46 @@ public void OnAllPluginsLoaded()
 
 public void OnLibraryRemoved(const char[] name)
 {
-	if (strcmp(name, "connect.ext", false) == 0)
-	{
-		VerifyNative_Connect();
-	}
-	if (strcmp(name, "EntWatch", false) == 0)
-	{
-		g_bEntWatch = false;
-		VerifyNative_EntWatch();
-	}
-	if (strcmp(name, "KnockbackRestrict", false) == 0)
-	{
-		g_bKbRestrict = false;
-		VerifyNative_KbRestrict();
-	}
-	if (strcmp(name, "sourcebans++", false) == 0)
-	{
-		g_bSbChecker = false;
-		VerifyNative_SbChecker();
-	}
+	HandleLibraryChange(name, false);
 }
+
 public void OnLibraryAdded(const char[] name)
 {
+	HandleLibraryChange(name, true);
+}
+
+void HandleLibraryChange(const char[] name, bool isAdded)
+{
+	#if defined _Connect_Included
 	if (strcmp(name, "connect.ext", false) == 0)
 	{
 		VerifyNative_Connect();
 	}
+	#endif
+
+	#if defined _EntWatch_include
 	if (strcmp(name, "EntWatch", false) == 0)
 	{
-		g_bEntWatch = true;
+		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
+	#endif
+
+	#if defined _KnockbackRestrict_included_
 	if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
-		g_bKbRestrict = true;
+		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
+	#endif
+
+	#if defined _sourcebanschecker_included
 	if (strcmp(name, "sourcebans++", false) == 0)
 	{
-		g_bSbChecker = true;
+		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
 	}
+	#endif
 }
 
 stock void VerifyNatives()
