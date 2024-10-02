@@ -141,25 +141,33 @@ public void OnLibraryAdded(const char[] name)
 
 void HandleLibraryChange(const char[] name, bool isAdded)
 {
+	#if defined _Connect_Included
 	if (strcmp(name, "connect.ext", false) == 0)
 	{
 		VerifyNative_Connect();
 	}
+	#endif
+	#if defined _EntWatch_include
 	if (strcmp(name, "EntWatch", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
+	#endif
+	#if defined _KnockbackRestrict_included_
 	if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
+	#endif
+	#if defined _sourcebanschecker_included
 	if (strcmp(name, "sourcebans++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
 	}
+	#endif
 }
 
 stock void VerifyNatives()
