@@ -8,6 +8,12 @@
 #tryinclude <connect>
 #define REQUIRE_EXTENSIONS
 
+#undef REQUIRE_PLUGIN
+#tryinclude <EntWatch>
+#tryinclude <KnockbackRestrict>
+#tryinclude <sourcebanschecker>
+#define REQUIRE_PLUGIN
+
 #pragma newdecls required
 
 #define MSGLENGTH            100
@@ -30,7 +36,7 @@ enum DatabaseState
 DatabaseState g_DatabaseState;
 
 Database g_hDatabase;
-Database g_hDatabase_Hlstatsx;
+Database g_hHlstatsx_Database;
 
 ConVar g_hCvar_Enabled;
 ConVar g_cvQueryRetry;
@@ -51,6 +57,25 @@ int  g_iSequence = 0;
 float RetryTime = 15.0;
 
 bool g_bSQLite = true;
+bool g_bConnect = false;
+bool g_bEntWatch = false;
+bool g_bKbRestrict = false;
+bool g_bSbChecker = false;
+
+// Prevent warnings at compile if not included
+#if defined _Connect_Included
+bool g_bNative_Connect = false;
+#endif
+#if defined _EntWatch_include
+bool g_bNative_EntWatch = false;
+#endif
+#if defined _KnockbackRestrict_included_
+bool g_bNative_KbRestrict = false;
+#endif
+#if defined _sourcebanschecker_included
+bool g_bNative_SbChecker_Bans = false;
+bool g_bNative_SbChecker_Comms = false;
+#endif
 
 //----------------------------------------------------------------------------------------------------
 // Purpose:
@@ -58,9 +83,9 @@ bool g_bSQLite = true;
 public Plugin myinfo =
 {
 	name        = "Connect Announce",
-	author      = "Neon + Botox + maxime1907",
+	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.7",
+	version     = "2.3.8",
 	url         = ""
 }
 
@@ -88,6 +113,96 @@ public void OnPluginStart()
 //----------------------------------------------------------------------------------------------------
 // Purpose:
 //----------------------------------------------------------------------------------------------------
+public void OnAllPluginsLoaded()
+{
+	g_bEntWatch = LibraryExists("EntWatch");
+	g_bKbRestrict = LibraryExists("KnockbackRestrict");
+	g_bSbChecker = LibraryExists("sourcebans++");
+	VerifyNatives();
+}
+
+public void OnLibraryRemoved(const char[] name)
+{
+	if (strcmp(name, "connect.ext", false) == 0)
+	{
+		VerifyNative_Connect();
+	}
+	if (strcmp(name, "EntWatch", false) == 0)
+	{
+		g_bEntWatch = false;
+		VerifyNative_EntWatch();
+	}
+	if (strcmp(name, "KnockbackRestrict", false) == 0)
+	{
+		g_bKbRestrict = false;
+		VerifyNative_KbRestrict();
+	}
+	if (strcmp(name, "sourcebans++", false) == 0)
+	{
+		g_bSbChecker = false;
+		VerifyNative_SbChecker();
+	}
+}
+public void OnLibraryAdded(const char[] name)
+{
+	if (strcmp(name, "connect.ext", false) == 0)
+	{
+		VerifyNative_Connect();
+	}
+	if (strcmp(name, "EntWatch", false) == 0)
+	{
+		g_bEntWatch = true;
+		VerifyNative_EntWatch();
+	}
+	if (strcmp(name, "KnockbackRestrict", false) == 0)
+	{
+		g_bKbRestrict = true;
+		VerifyNative_KbRestrict();
+	}
+	if (strcmp(name, "sourcebans++", false) == 0)
+	{
+		g_bSbChecker = true;
+		VerifyNative_SbChecker();
+	}
+}
+
+stock void VerifyNatives()
+{
+	VerifyNative_Connect();
+	VerifyNative_EntWatch();
+	VerifyNative_KbRestrict();
+	VerifyNative_SbChecker();
+}
+
+stock void VerifyNative_Connect()
+{
+	char sError[255];
+	int iStatus = GetExtensionFileStatus("connect.ext", sError, sizeof(sError));
+
+	if (iStatus == 1)
+		g_bConnect = true;
+	else
+		g_bConnect = false;
+
+	g_bNative_Connect = g_bConnect && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
+}
+
+stock void VerifyNative_EntWatch()
+{
+	g_bNative_EntWatch = g_bEntWatch && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "EntWatch_GetClientEbansNumber") == FeatureStatus_Available;
+}
+
+stock void VerifyNative_KbRestrict()
+{
+	g_bNative_KbRestrict = g_bKbRestrict && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "KR_GetClientKbansNumber") == FeatureStatus_Available;
+}
+
+stock void VerifyNative_SbChecker()
+{
+	g_bNative_SbChecker_Bans = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsBans") == FeatureStatus_Available;
+	g_bNative_SbChecker_Comms = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsComms") == FeatureStatus_Available;
+}
+
 public void OnMapEnd()
 {
 	// Clean up on map end just so we can start a fresh connection when we need it later.
@@ -98,10 +213,10 @@ public void OnMapEnd()
 		g_hDatabase = null;
 	}
 
-	if (g_hDatabase_Hlstatsx != null)
+	if (g_hHlstatsx_Database != null)
 	{
-		delete g_hDatabase_Hlstatsx;
-		g_hDatabase_Hlstatsx = null;
+		delete g_hHlstatsx_Database;
+		g_hHlstatsx_Database = null;
 	}
 }
 
@@ -127,10 +242,10 @@ public void OnConfigsExecuted()
 
 		if (SQL_CheckConfig("hlstatsx"))
 		{
-			g_hDatabase_Hlstatsx = SQL_Connect("hlstatsx", true, error, sizeof(error));
+			g_hHlstatsx_Database = SQL_Connect("hlstatsx", true, error, sizeof(error));
 		}
 
-		if (g_hDatabase_Hlstatsx == null)
+		if (g_hHlstatsx_Database == null)
 		{
 			LogError("Could not connect to database: %s", error);
 		}
@@ -887,7 +1002,7 @@ public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] 
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = 'css-ze' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = 'css-ze' AND playerId = %d	ORDER BY skill DESC", iPlayerId);
-	g_hDatabase_Hlstatsx.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
+	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
 
 	delete results;
 }
@@ -989,12 +1104,83 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #if defined _Connect_Included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
-		bool bConnect = GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
-
-		if (bConnect && !SteamClientAuthenticated(g_sAuthID[client]))
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", " <NoSteam>");
+		if (g_bNative_Connect)
+		{
+			if (!SteamClientAuthenticated(g_sAuthID[client]))
+				ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", " <NoSteam>");
+			else
+				ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
+		}
 		else
+		{
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
+		}
+	}
+#endif
+
+#if defined _EntWatch_include
+	if (StrContains(sFinalMessage, "{EBANS}"))
+	{
+		if (g_bNative_EntWatch)
+		{
+			char sBuffer[16];
+			int iEntWatch = EntWatch_GetClientEbansNumber(client);
+			Format(sBuffer, sizeof(sBuffer), "%d", iEntWatch);
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", sBuffer);
+		}
+		else
+		{
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", "");
+		}
+	}
+#endif
+
+#if defined _KnockbackRestrict_included_
+	if (StrContains(sFinalMessage, "{KBANS}"))
+	{
+		if (g_bNative_KbRestrict)
+		{
+			char sBuffer[16];
+			int iKbans = KR_GetClientKbansNumber(client);
+			Format(sBuffer, sizeof(sBuffer), "%d", iKbans);
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", sBuffer);
+		}
+		else
+		{
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", "");
+		}
+	}
+#endif
+
+#if defined _sourcebanschecker_included
+	if (StrContains(sFinalMessage, "{BANS}"))
+	{
+		if (g_bNative_SbChecker_Bans)
+		{
+			char sBuffer[16];
+			int iSbans = SBPP_CheckerGetClientsBans(client);
+			Format(sBuffer, sizeof(sBuffer), "%d", iSbans);
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
+		}
+		else
+		{
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", "");
+		}
+	}
+
+	if (StrContains(sFinalMessage, "{COMMS}"))
+	{
+		if (g_bNative_SbChecker_Comms)
+		{
+			char sBuffer[16];
+			int iComms = SBPP_CheckerGetClientsComms(client);
+			Format(sBuffer, sizeof(sBuffer), "%d", iComms);
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
+		}
+		else
+		{
+			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", "");
+		}
 	}
 #endif
 
@@ -1057,7 +1243,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (g_hDatabase_Hlstatsx == null)
+	if (g_hHlstatsx_Database == null)
 	{
 		Announcer(client, -1, true);
 	}
@@ -1068,7 +1254,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 
 		char sQuery[255];
 		Format(sQuery, sizeof(sQuery), "SELECT * FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = 'css-ze'", sAuth);
-		g_hDatabase_Hlstatsx.Query(SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
+		g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
 	}
 	return Plugin_Stop;
 }
