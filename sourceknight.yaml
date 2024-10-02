@@ -1,26 +1,50 @@
 project:
-  sourceknight: 0.1
+  sourceknight: 0.2
   name: ConnectAnnounce
   dependencies:
     - name: sourcemod
       type: tar
-      version: 1.11.0-git6906
-      location: https://sm.alliedmods.net/smdrop/1.11/sourcemod-1.11.0-git6906-linux.tar.gz
+      version: 1.11.0-git6934
+      location: https://sm.alliedmods.net/smdrop/1.11/sourcemod-1.11.0-git6934-linux.tar.gz
       unpack:
       - source: /addons
         dest: /addons
+
     - name: multicolors
       type: git
       repo: https://github.com/srcdslab/sm-plugin-MultiColors
       unpack:
       - source: /addons
         dest: /addons
+
     - name: ext-connect
       type: git
       repo: https://github.com/srcdslab/sm-ext-connect
       unpack:
       - source: /addons
         dest: /addons
+
+    - name: sourcebans-pp
+      type: git
+      repo: https://github.com/srcdslab/sourcebans-pp
+      unpack:
+      - source: game/addons/sourcemod/scripting/include
+        dest: /addons/sourcemod/scripting/include
+
+    - name: EntWatch
+      type: git
+      repo: https://github.com/srcdslab/sm-plugin-EntWatch
+      unpack:
+      - source: /addons
+        dest: /addons
+
+    - name: KnockbackRestrict
+      type: git
+      repo: https://github.com/srcdslab/sm-plugin-KnockbackRestrict
+      unpack:
+      - source: /addons
+        dest: /addons
+
   root: /
   output: /addons/sourcemod/plugins
   targets:
