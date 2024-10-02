@@ -55,24 +55,23 @@ int  g_iConnectLock = 0;
 int  g_iSequence = 0;
 
 float RetryTime = 15.0;
-
 bool g_bSQLite = true;
-bool g_bConnect = false;
-bool g_bEntWatch = false;
-bool g_bKbRestrict = false;
-bool g_bSbChecker = false;
 
 // Prevent warnings at compile if not included
 #if defined _Connect_Included
+bool g_bConnect = false;
 bool g_bNative_Connect = false;
 #endif
 #if defined _EntWatch_include
+bool g_bEntWatch = false;
 bool g_bNative_EntWatch = false;
 #endif
 #if defined _KnockbackRestrict_included_
+bool g_bKbRestrict = false;
 bool g_bNative_KbRestrict = false;
 #endif
 #if defined _sourcebanschecker_included
+bool g_bSbChecker = false;
 bool g_bNative_SbChecker_Bans = false;
 bool g_bNative_SbChecker_Comms = false;
 #endif
@@ -115,9 +114,18 @@ public void OnPluginStart()
 //----------------------------------------------------------------------------------------------------
 public void OnAllPluginsLoaded()
 {
+#if defined _EntWatch_include
 	g_bEntWatch = LibraryExists("EntWatch");
+#endif
+
+#if defined _KnockbackRestrict_included_
 	g_bKbRestrict = LibraryExists("KnockbackRestrict");
+#endif
+
+#if defined _sourcebanschecker_included
 	g_bSbChecker = LibraryExists("sourcebans++");
+#endif
+
 	VerifyNatives();
 }
 
