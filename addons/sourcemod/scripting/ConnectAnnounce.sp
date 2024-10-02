@@ -133,36 +133,25 @@ public void OnLibraryAdded(const char[] name)
 
 void HandleLibraryChange(const char[] name, bool isAdded)
 {
-	#if defined _Connect_Included
 	if (strcmp(name, "connect.ext", false) == 0)
 	{
 		VerifyNative_Connect();
 	}
-	#endif
-
-	#if defined _EntWatch_include
 	if (strcmp(name, "EntWatch", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
-	#endif
-
-	#if defined _KnockbackRestrict_included_
 	if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
-	#endif
-
-	#if defined _sourcebanschecker_included
 	if (strcmp(name, "sourcebans++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
 	}
-	#endif
 }
 
 stock void VerifyNatives()
@@ -175,6 +164,7 @@ stock void VerifyNatives()
 
 stock void VerifyNative_Connect()
 {
+	#if defined _Connect_Included
 	char sError[255];
 	int iStatus = GetExtensionFileStatus("connect.ext", sError, sizeof(sError));
 
@@ -184,22 +174,29 @@ stock void VerifyNative_Connect()
 		g_bConnect = false;
 
 	g_bNative_Connect = g_bConnect && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
+	#endif
 }
 
 stock void VerifyNative_EntWatch()
 {
+	#if defined _EntWatch_include
 	g_bNative_EntWatch = g_bEntWatch && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "EntWatch_GetClientEbansNumber") == FeatureStatus_Available;
+	#endif
 }
 
 stock void VerifyNative_KbRestrict()
 {
+	#if defined _KnockbackRestrict_included_
 	g_bNative_KbRestrict = g_bKbRestrict && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "KR_GetClientKbansNumber") == FeatureStatus_Available;
+	#endif
 }
 
 stock void VerifyNative_SbChecker()
 {
+	#if defined _sourcebanschecker_included
 	g_bNative_SbChecker_Bans = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsBans") == FeatureStatus_Available;
 	g_bNative_SbChecker_Comms = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsComms") == FeatureStatus_Available;
+	#endif
 }
 
 public void OnMapEnd()
