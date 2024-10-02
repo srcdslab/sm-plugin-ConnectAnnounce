@@ -139,7 +139,7 @@ public void OnLibraryAdded(const char[] name)
 	HandleLibraryChange(name, true);
 }
 
-void HandleLibraryChange(const char[] name, bool isAdded)
+void HandleLibraryChange(const char[] name, bool isAdded = false)
 {
 	#if defined _Connect_Included
 	if (strcmp(name, "connect.ext", false) == 0)
