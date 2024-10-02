@@ -62,4 +62,4 @@ These variables can be used in `addons/sourcemod/configs/connect_announce/settin
 
 - `{NAME}` - Player name
 
-- `{COUNTRY}` - Country where the player connection from.
+- `{COUNTRY}` - Country from which the player connects.
