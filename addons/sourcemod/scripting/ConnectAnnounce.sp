@@ -57,24 +57,15 @@ int  g_iSequence = 0;
 float RetryTime = 15.0;
 bool g_bSQLite = true;
 
-// Prevent warnings at compile if not included
-#if defined _Connect_Included
 bool g_bConnect = false;
 bool g_bNative_Connect = false;
-#endif
-#if defined _EntWatch_include
 bool g_bEntWatch = false;
 bool g_bNative_EntWatch = false;
-#endif
-#if defined _KnockbackRestrict_included_
 bool g_bKbRestrict = false;
 bool g_bNative_KbRestrict = false;
-#endif
-#if defined _sourcebanschecker_included
 bool g_bSbChecker = false;
 bool g_bNative_SbChecker_Bans = false;
 bool g_bNative_SbChecker_Comms = false;
-#endif
 
 //----------------------------------------------------------------------------------------------------
 // Purpose:
@@ -114,17 +105,9 @@ public void OnPluginStart()
 //----------------------------------------------------------------------------------------------------
 public void OnAllPluginsLoaded()
 {
-#if defined _EntWatch_include
 	g_bEntWatch = LibraryExists("EntWatch");
-#endif
-
-#if defined _KnockbackRestrict_included_
 	g_bKbRestrict = LibraryExists("KnockbackRestrict");
-#endif
-
-#if defined _sourcebanschecker_included
 	g_bSbChecker = LibraryExists("sourcebans++");
-#endif
 
 	VerifyNatives();
 }
@@ -141,33 +124,25 @@ public void OnLibraryAdded(const char[] name)
 
 void HandleLibraryChange(const char[] name, bool isAdded = false)
 {
-	#if defined _Connect_Included
 	if (strcmp(name, "connect.ext", false) == 0)
 	{
 		VerifyNative_Connect();
 	}
-	#endif
-	#if defined _EntWatch_include
 	if (strcmp(name, "EntWatch", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
-	#endif
-	#if defined _KnockbackRestrict_included_
 	if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
-	#endif
-	#if defined _sourcebanschecker_included
 	if (strcmp(name, "sourcebans++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
 	}
-	#endif
 }
 
 stock void VerifyNatives()
