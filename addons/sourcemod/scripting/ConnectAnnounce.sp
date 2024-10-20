@@ -42,6 +42,9 @@ ConVar g_hCvar_Enabled;
 ConVar g_cvQueryRetry;
 ConVar g_hCvar_StorageType;
 ConVar g_hCvar_UseHlstatsx;
+ConVar g_hCvar_BanFormat;
+ConVar g_hCvar_AuthIdType;
+ConVar g_hCvar_HLXGameSv;
 
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
@@ -75,7 +78,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.8",
+	version     = "2.3.9",
 	url         = ""
 }
 
@@ -90,6 +93,11 @@ public void OnPluginStart()
 	g_hCvar_StorageType = CreateConVar("sm_connect_announce_storage", "sql", "Storage type used for connect messages [sql, local]", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_hCvar_UseHlstatsx = CreateConVar("sm_connect_announce_hlstatsx", "0", "Add hlstatsx informations on player connection?", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvQueryRetry 		= CreateConVar("sm_connect_announce_query_retry", "5", "How many times should the plugin retry after a fail-to-run query?", FCVAR_NONE, true, 0.0, false, 0.0);
+	g_hCvar_BanFormat 	= CreateConVar("sm_connect_announce_ban_format", "0", "Formating returned bans count [0 = Count only 1 = Count only if > 0 | 2 = Count + Text]", FCVAR_NONE, true, 0.0, true, 2.0);
+	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "2", "AuthID type used for connect messages [0 = Engine, 1 = Steam64, 2 = Steam2, 3 = Steam3]", FCVAR_NONE, true, 0.0, true, 3.0);
+	g_hCvar_HLXGameSv	= CreateConVar("sm_connect_announce_hlstatsx_table", "css-ze", "Server game code used for hlstatsx", FCVAR_NONE, true, 0.0, false, 0.0);
+
+	//Note: Backend will always use Steam2 AuthID for SQL storage
 
 	RegAdminCmd("sm_joinmsg", Command_JoinMsg, ADMFLAG_CUSTOM1, "Sets a custom message which will be shown upon connecting to the server");
 	RegAdminCmd("sm_resetjoinmsg", Command_ResetJoinMsg, ADMFLAG_CUSTOM1, "Resets your custom connect message");
@@ -155,7 +163,6 @@ stock void VerifyNatives()
 
 stock void VerifyNative_Connect()
 {
-	#if defined _Connect_Included
 	char sError[255];
 	int iStatus = GetExtensionFileStatus("connect.ext", sError, sizeof(sError));
 
@@ -165,29 +172,22 @@ stock void VerifyNative_Connect()
 		g_bConnect = false;
 
 	g_bNative_Connect = g_bConnect && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
-	#endif
 }
 
 stock void VerifyNative_EntWatch()
 {
-	#if defined _EntWatch_include
 	g_bNative_EntWatch = g_bEntWatch && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "EntWatch_GetClientEbansNumber") == FeatureStatus_Available;
-	#endif
 }
 
 stock void VerifyNative_KbRestrict()
 {
-	#if defined _KnockbackRestrict_included_
 	g_bNative_KbRestrict = g_bKbRestrict && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "KR_GetClientKbansNumber") == FeatureStatus_Available;
-	#endif
 }
 
 stock void VerifyNative_SbChecker()
 {
-	#if defined _sourcebanschecker_included
 	g_bNative_SbChecker_Bans = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsBans") == FeatureStatus_Available;
 	g_bNative_SbChecker_Comms = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsComms") == FeatureStatus_Available;
-	#endif
 }
 
 public void OnMapEnd()
@@ -234,7 +234,7 @@ public void OnConfigsExecuted()
 
 		if (g_hHlstatsx_Database == null)
 		{
-			LogError("Could not connect to database: %s", error);
+			LogError("HLStatsX: Could not connect to database: %s", error);
 		}
 	}
 
@@ -963,7 +963,7 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 	Announcer(client, iRank, true);
 }
 
-public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] error, any data)
+public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[] error, any data)
 {
 	int client = 0;
 
@@ -979,19 +979,27 @@ public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] 
 	}
 
 	int iPlayerId = -1;
-	if (results.RowCount > 0)
+	if (results.FetchRow())
 	{
-		int iField;
-		results.FetchRow();
-		results.FieldNameToNum("playerId", iField);
-		iPlayerId = results.FetchInt(iField);
+		iPlayerId = results.FetchInt(0);
 	}
 
-	char sQuery[MAX_SQL_QUERY_LENGTH];
-	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = 'css-ze' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = 'css-ze' AND playerId = %d	ORDER BY skill DESC", iPlayerId);
-	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
-
 	delete results;
+
+	// Player is not in the database no need to continue
+	if (iPlayerId == -1)
+	{
+		PrintToChatAll("[ConnectAnnounce] Player %N is not in the database.", client);
+		Announcer(client, -1, true);
+		return;
+	}
+
+	static char sGamecode[64];
+	g_hCvar_HLXGameSv.GetString(sGamecode, sizeof(sGamecode));
+
+	char sQuery[MAX_SQL_QUERY_LENGTH];
+	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = '%s' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = '%s' AND playerId = %d	ORDER BY skill DESC", sGamecode, sGamecode, iPlayerId);
+	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
 }
 
 // ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
@@ -1003,7 +1011,7 @@ public void SQLSelect_HlstatsxCB(Database db, DBResultSet results, const char[] 
 // ##        #######  ##    ##  ######     ##    ####  #######  ##    ##  ######
 public void Announcer(int client, int iRank, bool sendToAll)
 {
-	char        sFinalMessage[MAX_CHAT_LENGTH * 2];
+	char sFinalMessage[MAX_CHAT_LENGTH * 2];
 	static char sCountry[32];
 
 	strcopy(sFinalMessage, sizeof(sFinalMessage), g_sJoinMessageTemplate);
@@ -1062,118 +1070,104 @@ public void Announcer(int client, int iRank, bool sendToAll)
 				sPlayerType = "Player";
 		}
 
-		// Ranking
-		if (!GetAdminFlag(aid, Admin_Root) && !GetAdminFlag(aid, Admin_RCON))
-		{
-			if (GetAdminFlag(aid, Admin_Custom4))
-				StrCat(sPlayerType, sizeof(sPlayerType), " Top25");
-			else if (GetAdminFlag(aid, Admin_Custom3))
-				StrCat(sPlayerType, sizeof(sPlayerType), " Top50");
-		}
-
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{PLAYERTYPE}", sPlayerType);
 	}
 
 	if (StrContains(sFinalMessage, "{RANK}"))
 	{
+		char sBuffer[16];
 		if (iRank != -1)
-		{
-			char sBuffer[16];
-			Format(sBuffer, sizeof(sBuffer), "[#%d] ", iRank);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", sBuffer);
-		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", "");
-		}
+			Format(sBuffer, sizeof(sBuffer), "#%d", iRank);
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", sBuffer);
 	}
 
 #if defined _Connect_Included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
-		if (g_bNative_Connect)
-		{
-			if (!SteamClientAuthenticated(g_sAuthID[client]))
-				ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", " <NoSteam>");
-			else
-				ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
-		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", "");
-		}
+		char sBuffer[16];
+		if (g_bNative_Connect && !SteamClientAuthenticated(g_sAuthID[client]))
+			Format(sBuffer, sizeof(sBuffer), " <NoSteam>");
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", sBuffer);
 	}
 #endif
 
 #if defined _EntWatch_include
 	if (StrContains(sFinalMessage, "{EBANS}"))
 	{
+		char sBuffer[16];
 		if (g_bNative_EntWatch)
 		{
-			char sBuffer[16];
 			int iEntWatch = EntWatch_GetClientEbansNumber(client);
-			Format(sBuffer, sizeof(sBuffer), "%d", iEntWatch);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", sBuffer);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iEntWatch, "EBans");
 		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", "");
-		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", sBuffer);
 	}
 #endif
 
 #if defined _KnockbackRestrict_included_
 	if (StrContains(sFinalMessage, "{KBANS}"))
 	{
+		char sBuffer[16];
 		if (g_bNative_KbRestrict)
 		{
-			char sBuffer[16];
 			int iKbans = KR_GetClientKbansNumber(client);
-			Format(sBuffer, sizeof(sBuffer), "%d", iKbans);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", sBuffer);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iKbans, "KBans");
 		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", "");
-		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", sBuffer);
 	}
 #endif
 
 #if defined _sourcebanschecker_included
 	if (StrContains(sFinalMessage, "{BANS}"))
 	{
+		char sBuffer[16];
 		if (g_bNative_SbChecker_Bans)
 		{
-			char sBuffer[16];
 			int iSbans = SBPP_CheckerGetClientsBans(client);
-			Format(sBuffer, sizeof(sBuffer), "%d", iSbans);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iSbans, "Bans");
 		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", "");
-		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
 	}
+
+	// Todo: When sbpp checker will support mute and gag separately add {MUTES} and {GAGS}
 
 	if (StrContains(sFinalMessage, "{COMMS}"))
 	{
+		char sBuffer[16];
 		if (g_bNative_SbChecker_Comms)
 		{
-			char sBuffer[16];
 			int iComms = SBPP_CheckerGetClientsComms(client);
-			Format(sBuffer, sizeof(sBuffer), "%d", iComms);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iComms, "Comms");
 		}
-		else
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", "");
-		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
 	}
 #endif
 
 	if (StrContains(sFinalMessage, "{STEAMID}"))
 	{
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", g_sAuthID[client]);
+		char sBuffer[32];
+		switch (g_hCvar_AuthIdType.IntValue)
+		{
+			case 1:
+				GetClientAuthId(client, AuthId_SteamID64, sBuffer, sizeof(sBuffer));
+			case 2:
+				Format(sBuffer, sizeof(sBuffer), "%s", g_sAuthID[client]);
+			case 3:
+			{
+				GetClientAuthId(client, AuthId_Steam3, sBuffer, sizeof(sBuffer));
+				ReplaceString(sBuffer, sizeof(sBuffer), "[", "");
+				ReplaceString(sBuffer, sizeof(sBuffer), "]", "");
+			}
+			default:
+				GetClientAuthId(client, AuthId_Engine, sBuffer, sizeof(sBuffer));
+		}
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", sBuffer);
 	}
 
 	if (StrContains(sFinalMessage, "{NAME}"))
@@ -1197,14 +1191,11 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
+		char sBuffer[128];
 		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
-		{
-			char sBuffer[128];
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", sBuffer);
-		}
-		else
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", "");
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", sBuffer);
 
 		delete regexHEX;
 		delete regexColor;
@@ -1223,6 +1214,22 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		CPrintToChat(client, sFinalMessage);
 }
 
+stock void FormatBanCount(char[] sOutput, int iOutputSize, int banCount, char[] sInput)
+{
+	switch (g_hCvar_BanFormat.IntValue)
+	{
+		case 1: // Only count if > 0
+			if (banCount < 1)
+				Format(sOutput, iOutputSize, "");
+			else
+				Format(sOutput, iOutputSize, "%d", banCount);
+		case 2: // Count + Text
+			Format(sOutput, iOutputSize, "%d %s", banCount, sInput);
+		default: // Only count
+			Format(sOutput, iOutputSize, "%d", banCount);
+	}
+}
+
 public Action DelayAnnouncer(Handle timer, any serialClient)
 {
 	int client = GetClientFromSerial(serialClient);
@@ -1239,9 +1246,12 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 		static char sAuth[32];
 		strcopy(sAuth, sizeof(sAuth), g_sAuthID[client][8]);
 
+		static char sGamecode[64];
+		g_hCvar_HLXGameSv.GetString(sGamecode, sizeof(sGamecode));
+
 		char sQuery[255];
-		Format(sQuery, sizeof(sQuery), "SELECT * FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = 'css-ze'", sAuth);
-		g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB, sQuery, iUserID[client]);
+		Format(sQuery, sizeof(sQuery), "SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = '%s' LIMIT 1", sAuth, sGamecode);
+		g_hHlstatsx_Database.Query(HLX_SQLSelectplayerId, sQuery, iUserID[client]);
 	}
 	return Plugin_Stop;
 }
