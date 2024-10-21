@@ -94,7 +94,7 @@ public void OnPluginStart()
 	g_hCvar_UseHlstatsx = CreateConVar("sm_connect_announce_hlstatsx", "0", "Add hlstatsx informations on player connection?", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvQueryRetry 		= CreateConVar("sm_connect_announce_query_retry", "5", "How many times should the plugin retry after a fail-to-run query?", FCVAR_NONE, true, 0.0, false, 0.0);
 	g_hCvar_BanFormat 	= CreateConVar("sm_connect_announce_ban_format", "0", "Formating returned bans count [0 = Count only 1 = Count only if > 0 | 2 = Count + Text]", FCVAR_NONE, true, 0.0, true, 2.0);
-	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "2", "AuthID type used for connect messages [0 = Engine, 1 = Steam64, 2 = Steam2, 3 = Steam3]", FCVAR_NONE, true, 0.0, true, 3.0);
+	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "2", "AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]", FCVAR_NONE, true, 0.0, true, 3.0);
 	g_hCvar_HLXGameSv	= CreateConVar("sm_connect_announce_hlstatsx_table", "css-ze", "Server game code used for hlstatsx", FCVAR_NONE, true, 0.0, false, 0.0);
 
 	//Note: Backend will always use Steam2 AuthID for SQL storage
@@ -989,7 +989,6 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 	// Player is not in the database no need to continue
 	if (iPlayerId == -1)
 	{
-		PrintToChatAll("[ConnectAnnounce] Player %N is not in the database.", client);
 		Announcer(client, -1, true);
 		return;
 	}
@@ -1152,21 +1151,19 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	if (StrContains(sFinalMessage, "{STEAMID}"))
 	{
 		char sBuffer[32];
-		switch (g_hCvar_AuthIdType.IntValue)
+		AuthIdType authType = view_as<AuthIdType>(g_hCvar_AuthIdType.IntValue);
+
+		if (authType == AuthId_Steam2)
+			Format(sBuffer, sizeof(sBuffer), "%s", g_sAuthID[client]);
+		else
+			GetClientAuthId(client, authType, sBuffer, sizeof(sBuffer));
+
+		if (authType == AuthId_Steam3)
 		{
-			case 1:
-				GetClientAuthId(client, AuthId_SteamID64, sBuffer, sizeof(sBuffer));
-			case 2:
-				Format(sBuffer, sizeof(sBuffer), "%s", g_sAuthID[client]);
-			case 3:
-			{
-				GetClientAuthId(client, AuthId_Steam3, sBuffer, sizeof(sBuffer));
-				ReplaceString(sBuffer, sizeof(sBuffer), "[", "");
-				ReplaceString(sBuffer, sizeof(sBuffer), "]", "");
-			}
-			default:
-				GetClientAuthId(client, AuthId_Engine, sBuffer, sizeof(sBuffer));
+			ReplaceString(sBuffer, sizeof(sBuffer), "[", "");
+			ReplaceString(sBuffer, sizeof(sBuffer), "]", "");
 		}
+
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", sBuffer);
 	}
 
