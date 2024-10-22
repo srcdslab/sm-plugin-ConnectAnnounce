@@ -94,7 +94,7 @@ public void OnPluginStart()
 	g_hCvar_UseHlstatsx = CreateConVar("sm_connect_announce_hlstatsx", "0", "Add hlstatsx informations on player connection?", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_cvQueryRetry 		= CreateConVar("sm_connect_announce_query_retry", "5", "How many times should the plugin retry after a fail-to-run query?", FCVAR_NONE, true, 0.0, false, 0.0);
 	g_hCvar_BanFormat 	= CreateConVar("sm_connect_announce_ban_format", "0", "Formating returned bans count [0 = Count only 1 = Count only if > 0 | 2 = Count + Text]", FCVAR_NONE, true, 0.0, true, 2.0);
-	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "2", "AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]", FCVAR_NONE, true, 0.0, true, 3.0);
+	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "1", "AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]", FCVAR_NONE, true, 0.0, true, 3.0);
 	g_hCvar_HLXGameSv	= CreateConVar("sm_connect_announce_hlstatsx_table", "css-ze", "Server game code used for hlstatsx", FCVAR_NONE, true, 0.0, false, 0.0);
 
 	//Note: Backend will always use Steam2 AuthID for SQL storage
