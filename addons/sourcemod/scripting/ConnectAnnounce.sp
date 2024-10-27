@@ -16,6 +16,9 @@
 
 #pragma newdecls required
 
+#define CHARSET "utf8mb4"
+#define COLLATION "utf8mb4_unicode_ci"
+
 #define MSGLENGTH            100
 #define ANNOUNCER_DELAY      1.5
 #define DATABASE_NAME        "connect_announce"
@@ -78,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.9",
+	version     = "2.3.10",
 	url         = ""
 }
 
@@ -660,7 +663,7 @@ stock void DB_SetNames(Database db)
 {
 	static int retries = 0;
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	Format(sQuery, sizeof(sQuery), "SET NAMES \"UTF8MB4\"");
+	Format(sQuery, sizeof(sQuery), "SET NAMES \"%s\"", CHARSET);
 
 	if (DB_Connect())
 	{
@@ -704,7 +707,8 @@ stock void DB_CreateTable(Database db)
 			`name` TEXT NOT NULL, \
 			`message` TEXT, \
 			PRIMARY KEY(`steamid`) \
-			)"
+			) CHARACTER SET %s COLLATE %s;"
+			, CHARSET, COLLATION
 		);
 	else
 		FormatEx(sQuery, sizeof(sQuery),
@@ -713,7 +717,8 @@ stock void DB_CreateTable(Database db)
 			`name` VARCHAR(32) NOT NULL, \
 			`message` VARCHAR(256), \
 			PRIMARY KEY(`steamid`) \
-			);"
+			) CHARACTER SET %s COLLATE %s;"
+			, CHARSET, COLLATION
 		);
 
 	if (DB_Connect())
