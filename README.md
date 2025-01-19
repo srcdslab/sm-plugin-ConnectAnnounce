@@ -43,8 +43,8 @@ sm_connect_announce_ban_format "0"
 // AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]
 sm_connect_announce_authid_type "1"
 
-// Set the HLstatsX database configuration name
-Server game code used for hlstatsx "hlstatsx"
+// Set the HLstatsX database configuration name (Server game code used for hlstatsx)
+sm_connect_announce_hlstatsx_table "css-ze"
 ```
 
 **You can configured the player connect message like you want in** `addons/sourcemod/configs/connect_announce/settings.cfg`
