@@ -26,16 +26,25 @@ The plugin can be configured using the `connectannounce.cfg` file. Here are some
 
 ```plaintext
 // Enable or disable the plugin
-sm_connectannounce_enable "1"
+sm_connect_announce "1"
 
-// Set the default join message
-sm_connectannounce_default_message "Welcome to the server, {name}!"
+// Storage type used for connect messages [sql, local]
+sm_connect_announce_storage "sql"
 
-// Enable or disable HLstatsX integration
-sm_connectannounce_hlstatsx_enable "1"
+// Add HLstatsX informations on player connection?
+sm_connect_announce_hlstatsx "1"
 
-// Set the HLstatsX database configuration name
-sm_connectannounce_hlstatsx_db "hlstatsx"
+// How many times should the plugin retry after a fail-to-run query?
+sm_connect_announce_query_retry "5"
+
+// Formating returned bans count [0 = Count only 1 = Count only if > 0 | 2 = Count + Text]
+sm_connect_announce_ban_format "0"
+
+// AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]
+sm_connect_announce_authid_type "1"
+
+// Set the HLstatsX database configuration name (Server game code used for hlstatsx)
+sm_connect_announce_hlstatsx_table "css-ze"
 ```
 
 **You can configured the player connect message like you want in** `addons/sourcemod/configs/connect_announce/settings.cfg`
@@ -58,7 +67,11 @@ These variables can be used in `addons/sourcemod/configs/connect_announce/settin
 
 - `{COMMS}` - Number of bans. (SBPP only)
 
-- `{STEAMID}` - Player identification provided by Steam AuthId_Steam2 format.
+- `{MUTES}` - Number of mutes (SBPP only)
+
+- `{GAGS}` - Number of gags (SBPP only)
+
+- `{STEAMID}` - Player SteamID. [See cvar: `sm_connect_announce_authid_type`]
 
 - `{NAME}` - Player name
 

@@ -72,6 +72,8 @@ bool g_bNative_KbRestrict = false;
 bool g_bSbChecker = false;
 bool g_bNative_SbChecker_Bans = false;
 bool g_bNative_SbChecker_Comms = false;
+bool g_bNative_SbChecker_Mutes = false;
+bool g_bNative_SbChecker_Gags = false;
 
 //----------------------------------------------------------------------------------------------------
 // Purpose:
@@ -81,7 +83,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.10",
+	version     = "2.3.11",
 	url         = ""
 }
 
@@ -191,6 +193,8 @@ stock void VerifyNative_SbChecker()
 {
 	g_bNative_SbChecker_Bans = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsBans") == FeatureStatus_Available;
 	g_bNative_SbChecker_Comms = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsComms") == FeatureStatus_Available;
+	g_bNative_SbChecker_Mutes = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsMutes") == FeatureStatus_Available;
+	g_bNative_SbChecker_Gags = g_bSbChecker && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SBPP_CheckerGetClientsGags") == FeatureStatus_Available;
 }
 
 public void OnMapEnd()
@@ -1138,8 +1142,6 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
 	}
 
-	// Todo: When sbpp checker will support mute and gag separately add {MUTES} and {GAGS}
-
 	if (StrContains(sFinalMessage, "{COMMS}"))
 	{
 		char sBuffer[16];
@@ -1150,6 +1152,30 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		}
 
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
+	}
+
+	if (StrContains(sFinalMessage, "{MUTES}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Mutes)
+		{
+			int iMutes = SBPP_CheckerGetClientsMutes(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iMutes, "Mutes");
+		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{MUTES}", sBuffer);
+	}
+
+	if (StrContains(sFinalMessage, "{GAGS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Gags)
+		{
+			int iGags = SBPP_CheckerGetClientsGags(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iGags, "Gags");
+		}
+
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{GAGS}", sBuffer);
 	}
 #endif
 
