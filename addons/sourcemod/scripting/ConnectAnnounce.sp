@@ -83,7 +83,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.11",
+	version     = "2.3.12",
 	url         = ""
 }
 
@@ -318,7 +318,7 @@ public void OnClientPostAdminCheck(int client)
 
 		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
 	}
-	else if (strcmp(sStorageType, "sql", false) == 0)
+	else if (strcmp(sStorageType, "sql", false) == 0 && g_DatabaseState == DatabaseState_Connected)
 	{
 		SQLSelect_JoinClient(client);
 	}
