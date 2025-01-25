@@ -83,7 +83,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.12",
+	version     = "2.3.13",
 	url         = ""
 }
 
@@ -141,17 +141,17 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 	{
 		VerifyNative_Connect();
 	}
-	if (strcmp(name, "EntWatch", false) == 0)
+	else if (strcmp(name, "EntWatch", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
-	if (strcmp(name, "KnockbackRestrict", false) == 0)
+	else if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
-	if (strcmp(name, "sourcebans++", false) == 0)
+	else if (strcmp(name, "sourcebans++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
