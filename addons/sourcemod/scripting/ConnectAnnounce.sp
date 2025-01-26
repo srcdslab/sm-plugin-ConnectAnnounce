@@ -22,6 +22,7 @@
 #define MSGLENGTH            100
 #define ANNOUNCER_DELAY      1.5
 #define DATABASE_NAME        "connect_announce"
+#define HLSTATS_DB_NAME      "hlstatsx"
 #define MAX_SQL_QUERY_LENGTH 1024
 #define MAX_CHAT_LENGTH      256
 
@@ -37,6 +38,7 @@ enum DatabaseState
 	DatabaseState_Connected,
 }
 DatabaseState g_DatabaseState;
+DatabaseState g_Hlstatsx_DatabaseState;
 
 Database g_hDatabase;
 Database g_hHlstatsx_Database;
@@ -201,17 +203,15 @@ public void OnMapEnd()
 {
 	// Clean up on map end just so we can start a fresh connection when we need it later.
 	// Also it is necessary for using SQL_SetCharset
-	if (g_hDatabase != null)
-	{
-		delete g_hDatabase;
-		g_hDatabase = null;
-	}
+	DB_Disconnect();
+	HlstatsxDB_Disconnect();
+}
 
-	if (g_hHlstatsx_Database != null)
-	{
-		delete g_hHlstatsx_Database;
-		g_hHlstatsx_Database = null;
-	}
+public void OnPluginEnd()
+{
+	// Try to disconnect correctly from the database
+	DB_Disconnect();
+	HlstatsxDB_Disconnect();
 }
 
 public void OnConfigsExecuted()
@@ -232,17 +232,7 @@ public void OnConfigsExecuted()
 
 	if (GetConVarBool(g_hCvar_UseHlstatsx))
 	{
-		char error[255];
-
-		if (SQL_CheckConfig("hlstatsx"))
-		{
-			g_hHlstatsx_Database = SQL_Connect("hlstatsx", true, error, sizeof(error));
-		}
-
-		if (g_hHlstatsx_Database == null)
-		{
-			LogError("HLStatsX: Could not connect to database: %s", error);
-		}
+		HlstatsxDB_Connect();
 	}
 
 	Handle hFile = OpenFile(g_sDataFile, "r");
@@ -573,6 +563,106 @@ public Action Command_Announce(int client, int args)
 // #     # #    #  #
 //  #####   #### # #######
 
+// HLStatsX Database
+stock void HlstatsxDB_Disconnect()
+{
+	if (g_hHlstatsx_Database != null)
+	{
+		delete g_hHlstatsx_Database;
+		g_hHlstatsx_Database = null;
+	}
+
+	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+}
+
+stock bool HlstatsxDB_Connect()
+{
+	if (g_hHlstatsx_Database != null && g_Hlstatsx_DatabaseState == DatabaseState_Connected)
+		return true;
+
+	if (g_Hlstatsx_DatabaseState == DatabaseState_Wait)
+		return false;
+
+	if (g_Hlstatsx_DatabaseState != DatabaseState_Connecting)
+	{
+		if (!SQL_CheckConfig(HLSTATS_DB_NAME))
+		{
+			LogError("Could not find \"%s\" entry in databases.cfg.", HLSTATS_DB_NAME);
+			g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+			SetConVarBool(g_hCvar_UseHlstatsx, false);
+			return false;
+		}
+
+		g_Hlstatsx_DatabaseState = DatabaseState_Connecting;
+		SQL_TConnect(OnHLStatsXConnect, HLSTATS_DB_NAME);
+	}
+
+	return false;
+}
+
+public void OnHLStatsXConnect(Database db, DBResultSet results, const char[] error, any data)
+{
+	if (db == null)
+	{
+		LogError("HLStatsX: Could not connect to database: %s", error);
+		return;
+	}
+	
+	g_hHlstatsx_Database = db;
+	g_Hlstatsx_DatabaseState = DatabaseState_Connected;
+
+	LogMessage("Connected to HLStatsX database.");
+}
+
+stock bool Hlstatsx_DB_Conn_Lost(DBResultSet db)
+{
+	if (db == null)
+	{
+		if (g_hHlstatsx_Database != null)
+		{
+			LogError("Lost connection to HLStatsX DB. Reconnect after delay.");
+			delete g_hHlstatsx_Database;
+			g_hHlstatsx_Database = null;
+		}
+
+		if (g_Hlstatsx_DatabaseState != DatabaseState_Wait && g_Hlstatsx_DatabaseState != DatabaseState_Connecting)
+		{
+			g_Hlstatsx_DatabaseState = DatabaseState_Wait;
+			CreateTimer(RetryTime, TimerHLStatsX_Reconnect, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+public Action TimerHLStatsX_Reconnect(Handle timer, any data)
+{
+	Hlstatsx_DB_Reconnect();
+	return Plugin_Continue;
+}
+
+stock void Hlstatsx_DB_Reconnect()
+{
+	if (GetConVarBool(g_hCvar_UseHlstatsx) == false)
+		return;
+		
+	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+	HlstatsxDB_Connect();
+}
+
+// Connect Announce Database
+stock void DB_Disconnect()
+{
+	if (g_hDatabase != null)
+	{
+		delete g_hDatabase;
+		g_hDatabase = null;
+	}
+
+	g_DatabaseState = DatabaseState_Disconnected;
+}
 stock bool DB_Connect()
 {
 	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
@@ -944,9 +1034,10 @@ stock void SQLInsertUpdate_JoinClient(any client)
 
 public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[] error, any data)
 {
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -954,6 +1045,7 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 
 	if ((client = GetClientOfUserId(data)) == 0)
 	{
+		delete results;
 		return;
 	}
 
@@ -978,12 +1070,14 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 
 	if ((client = GetClientOfUserId(data)) == 0)
 	{
+		delete results;
 		return;
 	}
 
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -1265,7 +1359,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (g_hHlstatsx_Database == null)
+	if (g_Hlstatsx_DatabaseState != DatabaseState_Connected)
 	{
 		Announcer(client, -1, true);
 	}
