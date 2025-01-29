@@ -61,6 +61,8 @@ int  iUserSerial[MAXPLAYERS + 1];
 int  iUserID[MAXPLAYERS + 1];
 int  g_iConnectLock = 0;
 int  g_iSequence = 0;
+int  g_iHLXLock = 0;
+int  g_iHLXSequence = 0;
 
 float RetryTime = 15.0;
 bool g_bSQLite = true;
@@ -577,6 +579,8 @@ stock void HlstatsxDB_Disconnect()
 
 stock bool HlstatsxDB_Connect()
 {
+	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hHlstatsx_Database, g_Hlstatsx_DatabaseState, g_iHLXLock);
+
 	if (g_hHlstatsx_Database != null && g_Hlstatsx_DatabaseState == DatabaseState_Connected)
 		return true;
 
@@ -594,13 +598,14 @@ stock bool HlstatsxDB_Connect()
 		}
 
 		g_Hlstatsx_DatabaseState = DatabaseState_Connecting;
-		SQL_TConnect(OnHLStatsXConnect, HLSTATS_DB_NAME);
+		g_iHLXLock = g_iHLXSequence++;
+		Database.Connect(OnHLStatsXConnect, HLSTATS_DB_NAME, g_iHLXLock);
 	}
 
 	return false;
 }
 
-public void OnHLStatsXConnect(Database db, DBResultSet results, const char[] error, any data)
+public void OnHLStatsXConnect(Database db, const char[] error, any data)
 {
 	if (db == null)
 	{
@@ -608,10 +613,22 @@ public void OnHLStatsXConnect(Database db, DBResultSet results, const char[] err
 		return;
 	}
 	
-	g_hHlstatsx_Database = db;
-	g_Hlstatsx_DatabaseState = DatabaseState_Connected;
-
 	LogMessage("Connected to HLStatsX database.");
+
+	//PrintToServer("GotDatabase(data: %d, lock: %d, g_h: %d, db: %d)", data, g_iHLXLock, g_hHlstatsx_Database, db);
+
+	// If this happens to be an old connection request, ignore it.
+	if (data != g_iHLXLock || (g_hHlstatsx_Database != null && g_Hlstatsx_DatabaseState == DatabaseState_Connected))
+	{
+		if (db)
+			delete db;
+		return;
+	}
+
+
+	g_iHLXLock = 0;
+	g_Hlstatsx_DatabaseState = DatabaseState_Connected;
+	g_hHlstatsx_Database = db;
 }
 
 stock bool Hlstatsx_DB_Conn_Lost(DBResultSet db)
@@ -1359,7 +1376,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (g_Hlstatsx_DatabaseState != DatabaseState_Connected)
+	if (g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
 	{
 		Announcer(client, -1, true);
 	}
