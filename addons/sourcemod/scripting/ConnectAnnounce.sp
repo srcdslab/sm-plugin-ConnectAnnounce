@@ -1376,7 +1376,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
+	if (GetConVarBool(g_hCvar_UseHlstatsx) == false || g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
 	{
 		Announcer(client, -1, true);
 	}
