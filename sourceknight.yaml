@@ -17,9 +17,9 @@ project:
       - source: /addons
         dest: /addons
 
-    - name: ext-connect
+    - name: PlayerManager
       type: git
-      repo: https://github.com/srcdslab/sm-ext-connect
+      repo: https://github.com/srcdslab/sm-plugin-PlayerManager
       unpack:
       - source: /addons
         dest: /addons

@@ -4,14 +4,11 @@
 #include <geoip>
 #include <multicolors>
 
-#undef REQUIRE_EXTENSIONS
-#tryinclude <connect>
-#define REQUIRE_EXTENSIONS
-
 #undef REQUIRE_PLUGIN
 #tryinclude <EntWatch>
 #tryinclude <KnockbackRestrict>
 #tryinclude <sourcebanschecker>
+#tryinclude <PlayerManager>
 #define REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -63,8 +60,8 @@ int  g_iSequence = 0;
 float RetryTime = 15.0;
 bool g_bSQLite = true;
 
-bool g_bConnect = false;
-bool g_bNative_Connect = false;
+bool g_bPlayerManager = false;
+bool g_bNative_PlayerManager = false;
 bool g_bEntWatch = false;
 bool g_bNative_EntWatch = false;
 bool g_bKbRestrict = false;
@@ -83,7 +80,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.12",
+	version     = "2.3.13",
 	url         = ""
 }
 
@@ -137,9 +134,10 @@ public void OnLibraryAdded(const char[] name)
 
 void HandleLibraryChange(const char[] name, bool isAdded = false)
 {
-	if (strcmp(name, "connect.ext", false) == 0)
+	if (strcmp(name, "PlayerManager", false) == 0)
 	{
-		VerifyNative_Connect();
+		g_bPlayerManager = isAdded;
+		VerifyNative_PlayerManager();
 	}
 	if (strcmp(name, "EntWatch", false) == 0)
 	{
@@ -160,23 +158,15 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 
 stock void VerifyNatives()
 {
-	VerifyNative_Connect();
+	VerifyNative_PlayerManager();
 	VerifyNative_EntWatch();
 	VerifyNative_KbRestrict();
 	VerifyNative_SbChecker();
 }
 
-stock void VerifyNative_Connect()
+stock void VerifyNative_PlayerManager()
 {
-	char sError[255];
-	int iStatus = GetExtensionFileStatus("connect.ext", sError, sizeof(sError));
-
-	if (iStatus == 1)
-		g_bConnect = true;
-	else
-		g_bConnect = false;
-
-	g_bNative_Connect = g_bConnect && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
+	g_bNative_PlayerManager = g_bPlayerManager && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "PM_IsPlayerSteam") == FeatureStatus_Available;
 }
 
 stock void VerifyNative_EntWatch()
@@ -1090,11 +1080,11 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", sBuffer);
 	}
 
-#if defined _Connect_Included
+#if defined _PlayerManager_included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
 		char sBuffer[16];
-		if (g_bNative_Connect && !SteamClientAuthenticated(g_sAuthID[client]))
+		if (g_bNative_PlayerManager && !PM_IsPlayerSteam(client))
 			Format(sBuffer, sizeof(sBuffer), " <NoSteam>");
 
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", sBuffer);
