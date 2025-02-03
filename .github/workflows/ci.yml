@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dev-drprasad/delete-tag-and-release@v1.0.1
+      - uses: dev-drprasad/delete-tag-and-release@v1.1
         with:
           delete_release: true
           tag_name: latest
