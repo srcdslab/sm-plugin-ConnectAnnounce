@@ -19,6 +19,7 @@
 #define MSGLENGTH            100
 #define ANNOUNCER_DELAY      1.5
 #define DATABASE_NAME        "connect_announce"
+#define HLSTATS_DB_NAME      "hlstatsx"
 #define MAX_SQL_QUERY_LENGTH 1024
 #define MAX_CHAT_LENGTH      256
 
@@ -34,6 +35,7 @@ enum DatabaseState
 	DatabaseState_Connected,
 }
 DatabaseState g_DatabaseState;
+DatabaseState g_Hlstatsx_DatabaseState;
 
 Database g_hDatabase;
 Database g_hHlstatsx_Database;
@@ -49,13 +51,12 @@ ConVar g_hCvar_HLXGameSv;
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
 char g_sAuthID[MAXPLAYERS + 1][64];
-char g_sPlayerIP[MAXPLAYERS + 1][64];
-char g_sPlayerName[MAXPLAYERS + 1][64];
 int  g_sClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
-int  iUserSerial[MAXPLAYERS + 1];
 int  iUserID[MAXPLAYERS + 1];
 int  g_iConnectLock = 0;
 int  g_iSequence = 0;
+int  g_iHLXLock = 0;
+int  g_iHLXSequence = 0;
 
 float RetryTime = 15.0;
 bool g_bSQLite = true;
@@ -80,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.13",
+	version     = "2.3.14",
 	url         = ""
 }
 
@@ -139,17 +140,17 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 		g_bPlayerManager = isAdded;
 		VerifyNative_PlayerManager();
 	}
-	if (strcmp(name, "EntWatch", false) == 0)
+	else if (strcmp(name, "EntWatch", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
 	}
-	if (strcmp(name, "KnockbackRestrict", false) == 0)
+	else if (strcmp(name, "KnockbackRestrict", false) == 0)
 	{
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
-	if (strcmp(name, "sourcebans++", false) == 0)
+	else if (strcmp(name, "sourcebans++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
@@ -191,17 +192,15 @@ public void OnMapEnd()
 {
 	// Clean up on map end just so we can start a fresh connection when we need it later.
 	// Also it is necessary for using SQL_SetCharset
-	if (g_hDatabase != null)
-	{
-		delete g_hDatabase;
-		g_hDatabase = null;
-	}
+	DB_Disconnect();
+	HlstatsxDB_Disconnect();
+}
 
-	if (g_hHlstatsx_Database != null)
-	{
-		delete g_hHlstatsx_Database;
-		g_hHlstatsx_Database = null;
-	}
+public void OnPluginEnd()
+{
+	// Try to disconnect correctly from the database
+	DB_Disconnect();
+	HlstatsxDB_Disconnect();
 }
 
 public void OnConfigsExecuted()
@@ -222,17 +221,7 @@ public void OnConfigsExecuted()
 
 	if (GetConVarBool(g_hCvar_UseHlstatsx))
 	{
-		char error[255];
-
-		if (SQL_CheckConfig("hlstatsx"))
-		{
-			g_hHlstatsx_Database = SQL_Connect("hlstatsx", true, error, sizeof(error));
-		}
-
-		if (g_hHlstatsx_Database == null)
-		{
-			LogError("HLStatsX: Could not connect to database: %s", error);
-		}
+		HlstatsxDB_Connect();
 	}
 
 	Handle hFile = OpenFile(g_sDataFile, "r");
@@ -249,19 +238,12 @@ public void OnConfigsExecuted()
 	}
 }
 
-public void OnClientPutInServer(int client)
+public void OnClientAuthorized(int client)
 {
 	char sSteamID[64];
 	GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID));
 	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "%s", sSteamID);
 
-	char sIP[64];
-	GetClientIP(client, sIP, sizeof(sIP));
-	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
-
-	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "%N", client);
-
-	iUserSerial[client] = GetClientSerial(client);
 	iUserID[client] = GetClientUserId(client);
 }
 
@@ -306,7 +288,8 @@ public void OnClientPostAdminCheck(int client)
 			hCustomMessageFile = null;
 		}
 
-		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
+		int iUserSerial = GetClientSerial(client);
+		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0 && g_DatabaseState == DatabaseState_Connected)
 	{
@@ -317,11 +300,8 @@ public void OnClientPostAdminCheck(int client)
 public void OnClientDisconnect(int client)
 {
 	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "");
-	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "");
-	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "");
 	g_sClientJoinMessage[client]       = "";
 	g_sClientJoinMessageBanned[client] = -1;
-	iUserSerial[client] = -1;
 	iUserID[client] = -1;
 }
 
@@ -563,6 +543,121 @@ public Action Command_Announce(int client, int args)
 // #     # #    #  #
 //  #####   #### # #######
 
+// HLStatsX Database
+stock void HlstatsxDB_Disconnect()
+{
+	if (g_hHlstatsx_Database != null)
+	{
+		delete g_hHlstatsx_Database;
+		g_hHlstatsx_Database = null;
+	}
+
+	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+}
+
+stock bool HlstatsxDB_Connect()
+{
+	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hHlstatsx_Database, g_Hlstatsx_DatabaseState, g_iHLXLock);
+
+	if (g_hHlstatsx_Database != null && g_Hlstatsx_DatabaseState == DatabaseState_Connected)
+		return true;
+
+	if (g_Hlstatsx_DatabaseState == DatabaseState_Wait)
+		return false;
+
+	if (g_Hlstatsx_DatabaseState != DatabaseState_Connecting)
+	{
+		if (!SQL_CheckConfig(HLSTATS_DB_NAME))
+		{
+			LogError("Could not find \"%s\" entry in databases.cfg.", HLSTATS_DB_NAME);
+			g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+			SetConVarBool(g_hCvar_UseHlstatsx, false);
+			return false;
+		}
+
+		g_Hlstatsx_DatabaseState = DatabaseState_Connecting;
+		g_iHLXLock = g_iHLXSequence++;
+		Database.Connect(OnHLStatsXConnect, HLSTATS_DB_NAME, g_iHLXLock);
+	}
+
+	return false;
+}
+
+public void OnHLStatsXConnect(Database db, const char[] error, any data)
+{
+	if (db == null)
+	{
+		LogError("HLStatsX: Could not connect to database: %s", error);
+		return;
+	}
+	
+	LogMessage("Connected to HLStatsX database.");
+
+	//PrintToServer("GotDatabase(data: %d, lock: %d, g_h: %d, db: %d)", data, g_iHLXLock, g_hHlstatsx_Database, db);
+
+	// If this happens to be an old connection request, ignore it.
+	if (data != g_iHLXLock || (g_hHlstatsx_Database != null && g_Hlstatsx_DatabaseState == DatabaseState_Connected))
+	{
+		if (db)
+			delete db;
+		return;
+	}
+
+
+	g_iHLXLock = 0;
+	g_Hlstatsx_DatabaseState = DatabaseState_Connected;
+	g_hHlstatsx_Database = db;
+}
+
+stock bool Hlstatsx_DB_Conn_Lost(DBResultSet db)
+{
+	if (db == null)
+	{
+		if (g_hHlstatsx_Database != null)
+		{
+			LogError("Lost connection to HLStatsX DB. Reconnect after delay.");
+			delete g_hHlstatsx_Database;
+			g_hHlstatsx_Database = null;
+		}
+
+		if (g_Hlstatsx_DatabaseState != DatabaseState_Wait && g_Hlstatsx_DatabaseState != DatabaseState_Connecting)
+		{
+			g_Hlstatsx_DatabaseState = DatabaseState_Wait;
+			CreateTimer(RetryTime, TimerHLStatsX_Reconnect, _, TIMER_FLAG_NO_MAPCHANGE);
+		}
+
+		return true;
+	}
+
+	return false;
+}
+
+public Action TimerHLStatsX_Reconnect(Handle timer, any data)
+{
+	Hlstatsx_DB_Reconnect();
+	return Plugin_Continue;
+}
+
+stock void Hlstatsx_DB_Reconnect()
+{
+	if (GetConVarBool(g_hCvar_UseHlstatsx) == false)
+		return;
+		
+	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
+	HlstatsxDB_Connect();
+}
+
+// Connect Announce Database
+stock void DB_Disconnect()
+{
+	if (g_hDatabase != null)
+	{
+		delete g_hDatabase;
+		g_hDatabase = null;
+	}
+
+	g_DatabaseState = DatabaseState_Disconnected;
+}
 stock bool DB_Connect()
 {
 	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
@@ -829,7 +924,8 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 
 	delete results;
 
-	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
+	int iUserSerial = GetClientSerial(client);
+	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 }
 
 stock void SQLInsertUpdate_Join(any data)
@@ -922,7 +1018,7 @@ stock void SQLInsertUpdate_JoinClient(any client)
 	char sClientName[32];
 
 	FormatEx(sClientSteamID, sizeof(sClientSteamID), "%s", g_sAuthID[client]);
-	FormatEx(sClientName, sizeof(sClientName), "%s", g_sPlayerName[client]);
+	FormatEx(sClientName, sizeof(sClientName), "%N", client);
 	DataPack pack = new DataPack();
 	pack.WriteCell(client);
 	pack.WriteString(sClientSteamID);
@@ -934,9 +1030,10 @@ stock void SQLInsertUpdate_JoinClient(any client)
 
 public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[] error, any data)
 {
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -944,6 +1041,7 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 
 	if ((client = GetClientOfUserId(data)) == 0)
 	{
+		delete results;
 		return;
 	}
 
@@ -968,12 +1066,14 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 
 	if ((client = GetClientOfUserId(data)) == 0)
 	{
+		delete results;
 		return;
 	}
 
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -1190,7 +1290,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	if (StrContains(sFinalMessage, "{NAME}"))
 	{
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", g_sPlayerName[client]);
+		char sPlayerName[64];
+		GetClientName(client, sPlayerName, sizeof(sPlayerName));
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", sPlayerName);
 	}
 
 	if (StrContains(sFinalMessage, "{COUNTRY}"))
@@ -1209,8 +1311,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
-		char sBuffer[128];
-		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
+		char sIP[64], sBuffer[128];
+		GetClientIP(client, sIP, sizeof(sIP));
+		if (GeoipCountry(sIP, sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
 
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", sBuffer);
@@ -1255,7 +1358,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (g_hHlstatsx_Database == null)
+	if (GetConVarBool(g_hCvar_UseHlstatsx) == false || g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
 	{
 		Announcer(client, -1, true);
 	}
