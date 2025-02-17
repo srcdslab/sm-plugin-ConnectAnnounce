@@ -4,14 +4,11 @@
 #include <geoip>
 #include <multicolors>
 
-#undef REQUIRE_EXTENSIONS
-#tryinclude <connect>
-#define REQUIRE_EXTENSIONS
-
 #undef REQUIRE_PLUGIN
 #tryinclude <EntWatch>
 #tryinclude <KnockbackRestrict>
 #tryinclude <sourcebanschecker>
+#tryinclude <PlayerManager>
 #define REQUIRE_PLUGIN
 
 #pragma newdecls required
@@ -54,10 +51,7 @@ ConVar g_hCvar_HLXGameSv;
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
 char g_sAuthID[MAXPLAYERS + 1][64];
-char g_sPlayerIP[MAXPLAYERS + 1][64];
-char g_sPlayerName[MAXPLAYERS + 1][64];
 int  g_sClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
-int  iUserSerial[MAXPLAYERS + 1];
 int  iUserID[MAXPLAYERS + 1];
 int  g_iConnectLock = 0;
 int  g_iSequence = 0;
@@ -67,8 +61,8 @@ int  g_iHLXSequence = 0;
 float RetryTime = 15.0;
 bool g_bSQLite = true;
 
-bool g_bConnect = false;
-bool g_bNative_Connect = false;
+bool g_bPlayerManager = false;
+bool g_bNative_PlayerManager = false;
 bool g_bEntWatch = false;
 bool g_bNative_EntWatch = false;
 bool g_bKbRestrict = false;
@@ -87,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.13",
+	version     = "2.3.14",
 	url         = ""
 }
 
@@ -141,9 +135,10 @@ public void OnLibraryAdded(const char[] name)
 
 void HandleLibraryChange(const char[] name, bool isAdded = false)
 {
-	if (strcmp(name, "connect.ext", false) == 0)
+	if (strcmp(name, "PlayerManager", false) == 0)
 	{
-		VerifyNative_Connect();
+		g_bPlayerManager = isAdded;
+		VerifyNative_PlayerManager();
 	}
 	else if (strcmp(name, "EntWatch", false) == 0)
 	{
@@ -164,23 +159,15 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 
 stock void VerifyNatives()
 {
-	VerifyNative_Connect();
+	VerifyNative_PlayerManager();
 	VerifyNative_EntWatch();
 	VerifyNative_KbRestrict();
 	VerifyNative_SbChecker();
 }
 
-stock void VerifyNative_Connect()
+stock void VerifyNative_PlayerManager()
 {
-	char sError[255];
-	int iStatus = GetExtensionFileStatus("connect.ext", sError, sizeof(sError));
-
-	if (iStatus == 1)
-		g_bConnect = true;
-	else
-		g_bConnect = false;
-
-	g_bNative_Connect = g_bConnect && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "SteamClientAuthenticated") == FeatureStatus_Available;
+	g_bNative_PlayerManager = g_bPlayerManager && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "PM_IsPlayerSteam") == FeatureStatus_Available;
 }
 
 stock void VerifyNative_EntWatch()
@@ -251,19 +238,12 @@ public void OnConfigsExecuted()
 	}
 }
 
-public void OnClientPutInServer(int client)
+public void OnClientAuthorized(int client)
 {
 	char sSteamID[64];
 	GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID));
 	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "%s", sSteamID);
 
-	char sIP[64];
-	GetClientIP(client, sIP, sizeof(sIP));
-	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
-
-	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "%N", client);
-
-	iUserSerial[client] = GetClientSerial(client);
 	iUserID[client] = GetClientUserId(client);
 }
 
@@ -308,7 +288,8 @@ public void OnClientPostAdminCheck(int client)
 			hCustomMessageFile = null;
 		}
 
-		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
+		int iUserSerial = GetClientSerial(client);
+		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0 && g_DatabaseState == DatabaseState_Connected)
 	{
@@ -319,11 +300,8 @@ public void OnClientPostAdminCheck(int client)
 public void OnClientDisconnect(int client)
 {
 	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "");
-	FormatEx(g_sPlayerName[client], sizeof(g_sPlayerName[]), "");
-	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "");
 	g_sClientJoinMessage[client]       = "";
 	g_sClientJoinMessageBanned[client] = -1;
-	iUserSerial[client] = -1;
 	iUserID[client] = -1;
 }
 
@@ -946,7 +924,8 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 
 	delete results;
 
-	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial[client]);
+	int iUserSerial = GetClientSerial(client);
+	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 }
 
 stock void SQLInsertUpdate_Join(any data)
@@ -1039,7 +1018,7 @@ stock void SQLInsertUpdate_JoinClient(any client)
 	char sClientName[32];
 
 	FormatEx(sClientSteamID, sizeof(sClientSteamID), "%s", g_sAuthID[client]);
-	FormatEx(sClientName, sizeof(sClientName), "%s", g_sPlayerName[client]);
+	FormatEx(sClientName, sizeof(sClientName), "%N", client);
 	DataPack pack = new DataPack();
 	pack.WriteCell(client);
 	pack.WriteString(sClientSteamID);
@@ -1201,11 +1180,11 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", sBuffer);
 	}
 
-#if defined _Connect_Included
+#if defined _PlayerManager_included
 	if (StrContains(sFinalMessage, "{NOSTEAM}"))
 	{
 		char sBuffer[16];
-		if (g_bNative_Connect && !SteamClientAuthenticated(g_sAuthID[client]))
+		if (g_bNative_PlayerManager && !PM_IsPlayerSteam(client))
 			Format(sBuffer, sizeof(sBuffer), " <NoSteam>");
 
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", sBuffer);
@@ -1311,7 +1290,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	if (StrContains(sFinalMessage, "{NAME}"))
 	{
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", g_sPlayerName[client]);
+		char sPlayerName[64];
+		GetClientName(client, sPlayerName, sizeof(sPlayerName));
+		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", sPlayerName);
 	}
 
 	if (StrContains(sFinalMessage, "{COUNTRY}"))
@@ -1330,8 +1311,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			sCountryColor[0] = '{';
 		}
 
-		char sBuffer[128];
-		if (GeoipCountry(g_sPlayerIP[client], sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
+		char sIP[64], sBuffer[128];
+		GetClientIP(client, sIP, sizeof(sIP));
+		if (GeoipCountry(sIP, sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
 			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
 
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", sBuffer);
