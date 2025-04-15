@@ -81,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.3.14",
+	version     = "2.4.0",
 	url         = ""
 }
 
@@ -118,7 +118,7 @@ public void OnAllPluginsLoaded()
 {
 	g_bEntWatch = LibraryExists("EntWatch");
 	g_bKbRestrict = LibraryExists("KnockbackRestrict");
-	g_bSbChecker = LibraryExists("sourcebans++");
+	g_bSbChecker = LibraryExists("sourcechecker++");
 
 	VerifyNatives();
 }
@@ -150,7 +150,7 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 		g_bKbRestrict = isAdded;
 		VerifyNative_KbRestrict();
 	}
-	else if (strcmp(name, "sourcebans++", false) == 0)
+	else if (strcmp(name, "sourcechecker++", false) == 0)
 	{
 		g_bSbChecker = isAdded;
 		VerifyNative_SbChecker();
