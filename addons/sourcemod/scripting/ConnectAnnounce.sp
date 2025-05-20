@@ -876,7 +876,7 @@ stock void SQLSelect_Join(int client)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_SelectJoin, client, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 			return;
 		}
@@ -889,19 +889,29 @@ stock void SQLSelect_Join(int client)
 	retries = 0;
 }
 
-public Action TimerDB_SelectJoin(Handle timer, int client)
+public Action TimerDB_SelectJoin(Handle timer, int userid)
 {
+	int client = GetClientOfUserId(userid);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return Plugin_Stop;
+		
 	SQLSelect_Join(client);
-	return Plugin_Continue;
+	return Plugin_Stop;
 }
 
 stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error, any data)
 {
 	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+	{
+		delete results;
+		return;
+	}
 
 	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -924,6 +934,7 @@ stock void SQLInsertUpdate_JoinClient(int client)
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	char sClientNameEscaped[32];
 	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+	int userid = GetClientUserId(client);
 	
 	FormatEx(sClientName, sizeof(sClientName), "%N", client);
 	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
@@ -934,7 +945,7 @@ stock void SQLInsertUpdate_JoinClient(int client)
 
 	if (DB_Connect())
 	{
-		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, GetClientUserId(client));
+		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, userid);
 	}
 	else
 	{
@@ -942,7 +953,7 @@ stock void SQLInsertUpdate_JoinClient(int client)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, client, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 			return;
 		}
@@ -954,22 +965,30 @@ stock void SQLInsertUpdate_JoinClient(int client)
 	retries = 0;
 }
 
-public Action TimerDB_InsertUpdateJoin(Handle timer, any client)
+public Action TimerDB_InsertUpdateJoin(Handle timer, int userid)
 {
+	int client = GetClientOfUserId(userid);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return Plugin_Stop;
+		
 	SQLInsertUpdate_JoinClient(client);
-	return Plugin_Continue;
+	return Plugin_Stop;
 }
 
 stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[] error, any data)
 {
 	int client = GetClientOfUserId(data);
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+	{
+		delete results;
 		return;
+	}
 
 	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		CPrintToChat(client, "[ConnectAnnounce] An error occurred while saving your join message, please try again later.");
+		delete results;
 		return;
 	}
 
@@ -979,17 +998,16 @@ stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[]
 
 public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[] error, any data)
 {
-	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 	{
-		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		delete results;
 		return;
 	}
 
-	int client = 0;
-
-	if ((client = GetClientOfUserId(data)) == 0)
+	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		delete results;
 		return;
 	}
@@ -1011,9 +1029,8 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 
 public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[] error, any data)
 {
-	int client = 0;
-
-	if ((client = GetClientOfUserId(data)) == 0)
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 	{
 		delete results;
 		return;
@@ -1046,7 +1063,7 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = '%s' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = '%s' AND playerId = %d	ORDER BY skill DESC", sGamecode, sGamecode, iPlayerId);
-	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
+	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, GetClientUserId(client));
 }
 
 // ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
