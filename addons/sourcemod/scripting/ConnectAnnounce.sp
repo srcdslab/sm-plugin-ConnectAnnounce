@@ -1013,17 +1013,12 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 	}
 
 	int iRank = -1;
-	if (results.RowCount > 0)
+	if (results.FetchRow())
 	{
-		int iField;
-
-		results.FetchRow();
-		results.FieldNameToNum("rank", iField);
-		iRank = results.FetchInt(iField);
+		iRank = results.FetchInt(0);
 	}
 
 	delete results;
-
 	Announcer(client, iRank, true);
 }
 
@@ -1062,7 +1057,9 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 	g_hCvar_HLXGameSv.GetString(sGamecode, sizeof(sGamecode));
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = '%s' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = '%s' AND playerId = %d	ORDER BY skill DESC", sGamecode, sGamecode, iPlayerId);
+	Format(sQuery, sizeof(sQuery), 
+		"SELECT (SELECT COUNT(DISTINCT skill) FROM hlstats_Players WHERE game = '%s' AND skill >= (SELECT skill FROM hlstats_Players WHERE game = '%s' AND playerid = %d)) AS rank",
+		sGamecode, sGamecode, iPlayerId);
 	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, GetClientUserId(client));
 }
 
