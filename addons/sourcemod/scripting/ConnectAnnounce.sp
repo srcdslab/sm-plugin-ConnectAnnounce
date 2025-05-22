@@ -81,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.4.0",
+	version     = "2.4.1",
 	url         = ""
 }
 
@@ -293,7 +293,7 @@ public void OnClientPostAdminCheck(int client)
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0 && g_DatabaseState == DatabaseState_Connected)
 	{
-		SQLSelect_JoinClient(client);
+		SQLSelect_Join(client);
 	}
 }
 
@@ -306,7 +306,7 @@ public void OnClientDisconnect(int client)
 }
 
 //   .d8888b.   .d88888b.  888b     d888 888b     d888        d8888 888b    888 8888888b.   .d8888b.
-//  d88P  Y88b d88P" "Y88b 8888b   d8888 8888b   d8888       d88888 8888b   888 888  "Y88b d88P  Y88b
+//  d88P  Y88b d88P" "Y88b 8888b   d8888 8888b   d88888      d88888 8888b   888 888  "Y88b d88P  Y88b
 //  888    888 888     888 88888b.d88888 88888b.d88888      d88P888 88888b  888 888    888 Y88b.
 //  888        888     888 888Y88888P888 888Y88888P888     d88P 888 888Y88b 888 888    888  "Y888b.
 //  888        888     888 888 Y888P 888 888 Y888P 888    d88P  888 888 Y88b888 888    888     "Y88b.
@@ -672,7 +672,7 @@ stock bool DB_Connect()
 	if (g_DatabaseState != DatabaseState_Connecting)
 	{
 		if (!SQL_CheckConfig(DATABASE_NAME))
-  			SetFailState("Could not find \"%s\" entry in databases.cfg.", DATABASE_NAME);
+			SetFailState("Could not find \"%s\" entry in databases.cfg.", DATABASE_NAME);
 
 		g_DatabaseState = DatabaseState_Connecting;
 		g_iConnectLock = g_iSequence++;
@@ -852,30 +852,23 @@ public Action TimerDB_Reconnect(Handle timer, any data)
 	return Plugin_Continue;
 }
 
-stock void SQLSelect_JoinClient(any client)
+stock void SQLSelect_Join(int client)
 {
-	DataPack pack = new DataPack();
-	pack.WriteCell(client);
-	pack.WriteString(g_sAuthID[client]);
+	if (g_DatabaseState != DatabaseState_Connected || g_hDatabase == null)
+		return;
 
-	SQLSelect_Join(pack);
-}
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return;
 
-stock void SQLSelect_Join(any data)
-{
 	static int retries = 0;
-	char sClientSteamID[32], sQuery[MAX_SQL_QUERY_LENGTH];
+	int userid = GetClientUserId(client);
+	char sQuery[MAX_SQL_QUERY_LENGTH];
 
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-	pack.ReadCell();
-	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
-
-	Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", sClientSteamID);
+	Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", g_sAuthID[client]);
 
 	if (DB_Connect())
 	{
-		g_hDatabase.Query(OnSQLSelect_Join, sQuery, data);
+		g_hDatabase.Query(OnSQLSelect_Join, sQuery, userid);
 	}
 	else
 	{
@@ -883,39 +876,42 @@ stock void SQLSelect_Join(any data)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_SelectJoin, data, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 			return;
 		}
 		else
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database after %d retries, aborting", retries);
-			delete pack;
 		}
 	}
 
 	retries = 0;
 }
 
-public Action TimerDB_SelectJoin(Handle timer, any data)
+public Action TimerDB_SelectJoin(Handle timer, int userid)
 {
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-	SQLSelect_Join(pack);
-	return Plugin_Continue;
+	int client = GetClientOfUserId(userid);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return Plugin_Stop;
+		
+	SQLSelect_Join(client);
+	return Plugin_Stop;
 }
 
 stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error, any data)
 {
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-
-	int client = pack.ReadCell();
-	delete pack;
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+	{
+		delete results;
+		return;
+	}
 
 	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+		delete results;
 		return;
 	}
 
@@ -928,31 +924,28 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 }
 
-stock void SQLInsertUpdate_Join(any data)
+stock void SQLInsertUpdate_JoinClient(int client)
 {
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return;
+
 	static int retries = 0;
-
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-
+	char sClientName[32];
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	char sClientSteamID[32], sClientName[32], sClientNameEscaped[32];
-	char sMessage[MAX_CHAT_LENGTH], sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
-
-	pack.ReadCell();
-	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
-	pack.ReadString(sClientName, sizeof(sClientName));
-	pack.ReadString(sMessage, sizeof(sMessage));
-
+	char sClientNameEscaped[32];
+	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+	int userid = GetClientUserId(client);
+	
+	FormatEx(sClientName, sizeof(sClientName), "%N", client);
 	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
-	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
+	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
 
 	Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-			sClientSteamID, sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+		g_sAuthID[client], sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
 
 	if (DB_Connect())
 	{
-		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, data);
+		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, userid);
 	}
 	else
 	{
@@ -960,76 +953,58 @@ stock void SQLInsertUpdate_Join(any data)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, data, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
 			retries++;
 			return;
 		}
 		else
 		{
-			LogError("Failed to connect to database after %d retries, aborting", retries);
-			delete pack;
+			PrintToServer("[ConnectAnnounce] Failed to connect to database after %d retries, aborting", retries);
 		}
 	}
-
 	retries = 0;
 }
 
-public Action TimerDB_InsertUpdateJoin(Handle timer, any data)
+public Action TimerDB_InsertUpdateJoin(Handle timer, int userid)
 {
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-	SQLInsertUpdate_Join(pack);
-	return Plugin_Continue;
+	int client = GetClientOfUserId(userid);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+		return Plugin_Stop;
+		
+	SQLInsertUpdate_JoinClient(client);
+	return Plugin_Stop;
 }
 
 stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[] error, any data)
 {
-	DataPack pack = view_as<DataPack>(data);
-	pack.Reset();
-
-	char sClientSteamID[32];
-	char sClientName[32];
-	char sMessage[MAX_CHAT_LENGTH];
-	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
-
-	int client = pack.ReadCell();
-	pack.ReadString(sClientSteamID, sizeof(sClientSteamID));
-	pack.ReadString(sClientName, sizeof(sClientName));
-	pack.ReadString(sMessage, sizeof(sMessage));
-	delete pack;
-
-	SQL_EscapeString(g_hDatabase, sMessage, sMessageEscaped, sizeof(sMessageEscaped));
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+	{
+		delete results;
+		return;
+	}
 
 	if (DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 		CPrintToChat(client, "[ConnectAnnounce] An error occurred while saving your join message, please try again later.");
+		delete results;
 		return;
 	}
 
-	CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", sMessageEscaped);
-
+	CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", g_sClientJoinMessage[client]);
 	delete results;
-}
-
-stock void SQLInsertUpdate_JoinClient(any client)
-{
-	char sClientSteamID[32];
-	char sClientName[32];
-
-	FormatEx(sClientSteamID, sizeof(sClientSteamID), "%s", g_sAuthID[client]);
-	FormatEx(sClientName, sizeof(sClientName), "%N", client);
-	DataPack pack = new DataPack();
-	pack.WriteCell(client);
-	pack.WriteString(sClientSteamID);
-	pack.WriteString(sClientName);
-	pack.WriteString(g_sClientJoinMessage[client]);
-
-	SQLInsertUpdate_Join(pack);
 }
 
 public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[] error, any data)
 {
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
+	{
+		delete results;
+		return;
+	}
+
 	if (Hlstatsx_DB_Conn_Lost(results) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
@@ -1037,34 +1012,20 @@ public void SQLSelect_HlstatsxCB2(Database db, DBResultSet results, const char[]
 		return;
 	}
 
-	int client = 0;
-
-	if ((client = GetClientOfUserId(data)) == 0)
-	{
-		delete results;
-		return;
-	}
-
 	int iRank = -1;
-	if (results.RowCount > 0)
+	if (results.FetchRow())
 	{
-		int iField;
-
-		results.FetchRow();
-		results.FieldNameToNum("rank", iField);
-		iRank = results.FetchInt(iField);
+		iRank = results.FetchInt(0);
 	}
 
 	delete results;
-
 	Announcer(client, iRank, true);
 }
 
 public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[] error, any data)
 {
-	int client = 0;
-
-	if ((client = GetClientOfUserId(data)) == 0)
+	int client = GetClientOfUserId(data);
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 	{
 		delete results;
 		return;
@@ -1096,8 +1057,10 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 	g_hCvar_HLXGameSv.GetString(sGamecode, sizeof(sGamecode));
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	Format(sQuery, sizeof(sQuery), "SELECT T1.playerid, T1.skill, T2.rank FROM hlstats_Players T1 LEFT JOIN (SELECT skill, (@v_id := @v_Id + 1) AS rank	FROM (SELECT DISTINCT skill FROM hlstats_Players WHERE game = '%s' ORDER BY skill DESC) t, (SELECT @v_id := 0) r) T2 ON T1.skill = T2.skill	WHERE game = '%s' AND playerId = %d	ORDER BY skill DESC", sGamecode, sGamecode, iPlayerId);
-	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, iUserID[client]);
+	Format(sQuery, sizeof(sQuery), 
+		"SELECT (SELECT COUNT(DISTINCT skill) FROM hlstats_Players WHERE game = '%s' AND skill >= (SELECT skill FROM hlstats_Players WHERE game = '%s' AND playerid = %d)) AS rank",
+		sGamecode, sGamecode, iPlayerId);
+	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, GetClientUserId(client));
 }
 
 // ######## ##     ## ##    ##  ######  ######## ####  #######  ##    ##  ######
@@ -1302,7 +1265,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		Regex regexColor        = CompileRegex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
 
 		if ((MatchRegex(regexHEX, sFinalMessage) >= 1 && GetRegexSubString(regexHEX, 0, sCountryColor, sizeof(sCountryColor)))
-		    || (MatchRegex(regexColor, sFinalMessage) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
+			|| (MatchRegex(regexColor, sFinalMessage) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
 		{
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), sCountryColor, "");
 			char[] sTagCountryColor = "{COUNTRY_COLOR:";
