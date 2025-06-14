@@ -51,7 +51,7 @@ ConVar g_hCvar_HLXGameSv;
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
 char g_sAuthID[MAXPLAYERS + 1][64];
-int  g_sClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
+int  g_iClientJoinMessageBanned[MAXPLAYERS + 1] = { -1, ... };
 int  iUserID[MAXPLAYERS + 1];
 int  g_iConnectLock = 0;
 int  g_iSequence = 0;
@@ -81,7 +81,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.4.1",
+	version     = "2.5.0",
 	url         = ""
 }
 
@@ -257,8 +257,6 @@ public void OnClientPostAdminCheck(int client)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		PrintToChatAll("Auth: %s", g_sAuthID[client]);
-
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
 		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
@@ -275,9 +273,9 @@ public void OnClientPostAdminCheck(int client)
 			KvGetString(hCustomMessageFile, "banned", sBanned, sizeof(sBanned), "");
 			int iBannedTime = StringToInt(sBanned, 10);
 			if (strcmp(sBanned, "true", false) == 0)
-				g_sClientJoinMessageBanned[client] = 0;
+				g_iClientJoinMessageBanned[client] = 0;
 			else if (sBanned[0] != '\0')
-				g_sClientJoinMessageBanned[client] = iBannedTime;
+				g_iClientJoinMessageBanned[client] = iBannedTime;
 
 			KvGetString(hCustomMessageFile, "message", g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "");
 		}
@@ -287,6 +285,9 @@ public void OnClientPostAdminCheck(int client)
 			CloseHandle(hCustomMessageFile);
 			hCustomMessageFile = null;
 		}
+
+		if (g_iClientJoinMessageBanned[client] != -1)
+			return;
 
 		int iUserSerial = GetClientSerial(client);
 		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
@@ -301,7 +302,7 @@ public void OnClientDisconnect(int client)
 {
 	FormatEx(g_sAuthID[client], sizeof(g_sAuthID[]), "");
 	g_sClientJoinMessage[client]       = "";
-	g_sClientJoinMessageBanned[client] = -1;
+	g_iClientJoinMessageBanned[client] = -1;
 	iUserID[client] = -1;
 }
 
@@ -469,11 +470,11 @@ public Action Command_Ban(int client, int args)
 	if (args > 1)
 	{
 		GetCmdArg(2, sTime, sizeof(sTime));
-		g_sClientJoinMessageBanned[client] = StringToInt(sTime, 10);
+		g_iClientJoinMessageBanned[client] = StringToInt(sTime, 10);
 	}
 	else
 	{
-		g_sClientJoinMessageBanned[client] = 0;    // Perma ban
+		g_iClientJoinMessageBanned[client] = 0;    // Perma ban
 	}
 
 	if ((iTarget = FindTarget(client, sTarget, true)) == -1)
@@ -497,7 +498,7 @@ public Action Command_Ban(int client, int args)
 		KvRewind(hCustomMessageFile);
 
 		char sBannedTime[256];
-		IntToString(g_sClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
+		IntToString(g_iClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
 
 		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
 			KvSetString(hCustomMessageFile, "banned", sBannedTime);
@@ -514,12 +515,18 @@ public Action Command_Ban(int client, int args)
 		if (hCustomMessageFile != null)
 			CloseHandle(hCustomMessageFile);
 	}
-	// else if (strcmp(sStorageType, "sql", false) == 0)
-	// {
-	// 	// TODO: Implement me
-	// }
+	else if (strcmp(sStorageType, "sql", false) == 0)
+	{
+		char sQuery[MAX_SQL_QUERY_LENGTH];
+		Format(sQuery, sizeof(sQuery), "UPDATE `join` SET `is_banned` = %d WHERE `steamid` = '%s';", g_iClientJoinMessageBanned[iTarget], g_sAuthID[iTarget]);
 
-	if (g_sClientJoinMessageBanned[client] == -1)
+		if (DB_Connect())
+		{
+			g_hDatabase.Query(Query_ErrorCheck, sQuery);
+		}
+	}
+
+	if (g_iClientJoinMessageBanned[client] == -1)
 		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
 	else
 		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
@@ -795,6 +802,7 @@ stock void DB_CreateTable(Database db)
 			`steamid` TEXT NOT NULL, \
 			`name` TEXT NOT NULL, \
 			`message` TEXT, \
+			`is_banned` INTEGER DEFAULT -1, \
 			PRIMARY KEY(`steamid`) \
 			) CHARACTER SET %s COLLATE %s;"
 			, CHARSET, COLLATION
@@ -805,6 +813,7 @@ stock void DB_CreateTable(Database db)
 			`steamid` VARCHAR(32) NOT NULL, \
 			`name` VARCHAR(32) NOT NULL, \
 			`message` VARCHAR(256), \
+			`is_banned` INTEGER DEFAULT -1, \
 			PRIMARY KEY(`steamid`) \
 			) CHARACTER SET %s COLLATE %s;"
 			, CHARSET, COLLATION
@@ -843,7 +852,9 @@ public Action TimerDB_CreateTable(Handle timer, any data)
 public void Query_ErrorCheck(Database db, DBResultSet results, const char[] error, any data)
 {
 	if (DB_Conn_Lost(results) || error[0])
+	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
+	}
 }
 
 public Action TimerDB_Reconnect(Handle timer, any data)
@@ -864,7 +875,7 @@ stock void SQLSelect_Join(int client)
 	int userid = GetClientUserId(client);
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 
-	Format(sQuery, sizeof(sQuery), "SELECT `message` FROM `join` WHERE `steamid` = '%s';", g_sAuthID[client]);
+	Format(sQuery, sizeof(sQuery), "SELECT `message`, `is_banned` FROM `join` WHERE `steamid` = '%s';", g_sAuthID[client]);
 
 	if (DB_Connect())
 	{
@@ -916,9 +927,15 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	}
 
 	if (results.FetchRow())
+	{
 		results.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
+		g_iClientJoinMessageBanned[client] = results.FetchInt(1);
+	}
 
 	delete results;
+
+	if (g_iClientJoinMessageBanned[client] != -1)
+		return;
 
 	int iUserSerial = GetClientSerial(client);
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
@@ -1287,7 +1304,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_sClientJoinMessageBanned[client] == -1)
+	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
 	{
 		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
 	}

@@ -2,6 +2,9 @@
 
 ConnectAnnounce is a SourceMod plugin designed to announce player connections with customizable messages. It supports threaded queries to prevent server freeze and integrates with HLstatsX for additional player information.
 
+> [!IMPORTANT]
+> For versions 3.5.0: If you are using an older version of the plugin, please perform the migration by [following the provided steps](#migration).
+
 ## Features
 
 - Announce player connections with customizable messages.
@@ -76,3 +79,13 @@ These variables can be used in `addons/sourcemod/configs/connect_announce/settin
 - `{NAME}` - Player name
 
 - `{COUNTRY}` - Country from which the player connects.
+
+# Migration
+## 3.4.1 to 3.5.0
+
+You need to run the following queries:
+
+### MYSQL & SQLITE
+```sql
+ALTER TABLE `join` ADD COLUMN `is_banned` INTEGER DEFAULT -1;
+```
