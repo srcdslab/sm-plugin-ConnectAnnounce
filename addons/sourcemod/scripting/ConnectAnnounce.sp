@@ -47,6 +47,7 @@ ConVar g_hCvar_UseHlstatsx;
 ConVar g_hCvar_BanFormat;
 ConVar g_hCvar_AuthIdType;
 ConVar g_hCvar_HLXGameSv;
+ConVar g_hCvar_DBConnectDelay;
 
 char g_sJoinMessageTemplate[MAX_CHAT_LENGTH * 2] = "";
 char g_sClientJoinMessage[MAXPLAYERS + 1][MAX_CHAT_LENGTH];
@@ -81,7 +82,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.0",
+	version     = "2.5.1",
 	url         = ""
 }
 
@@ -99,6 +100,7 @@ public void OnPluginStart()
 	g_hCvar_BanFormat 	= CreateConVar("sm_connect_announce_ban_format", "0", "Formating returned bans count [0 = Count only 1 = Count only if > 0 | 2 = Count + Text]", FCVAR_NONE, true, 0.0, true, 2.0);
 	g_hCvar_AuthIdType	= CreateConVar("sm_connect_announce_authid_type", "1", "AuthID type used for connect messages [0 = Engine, 1 = Steam2, 2 = Steam3, 3 = Steam64]", FCVAR_NONE, true, 0.0, true, 3.0);
 	g_hCvar_HLXGameSv	= CreateConVar("sm_connect_announce_hlstatsx_table", "css-ze", "Server game code used for hlstatsx", FCVAR_NONE, true, 0.0, false, 0.0);
+	g_hCvar_DBConnectDelay = CreateConVar("sm_connect_announce_db_connect_delay", "0.0", "Delay in seconds before connecting to the database (0.0 = instant, max 60.0)", FCVAR_NONE, true, 0.0, true, 60.0);
 
 	//Note: Backend will always use Steam2 AuthID for SQL storage
 
@@ -216,7 +218,11 @@ public void OnConfigsExecuted()
 
 	if (strcmp(sStorageType, "sql", false) == 0)
 	{
-		DB_Connect();
+		float fDelay = g_hCvar_DBConnectDelay.FloatValue;
+		if (fDelay > 0.0)
+			CreateTimer(fDelay, Timer_DelayedDBConnect, _, TIMER_FLAG_NO_MAPCHANGE);
+		else
+			DB_Connect();
 	}
 
 	if (GetConVarBool(g_hCvar_UseHlstatsx))
@@ -1354,5 +1360,11 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 		Format(sQuery, sizeof(sQuery), "SELECT playerId FROM hlstats_PlayerUniqueIds WHERE uniqueId = '%s' AND game = '%s' LIMIT 1", sAuth, sGamecode);
 		g_hHlstatsx_Database.Query(HLX_SQLSelectplayerId, sQuery, iUserID[client]);
 	}
+	return Plugin_Stop;
+}
+
+public Action Timer_DelayedDBConnect(Handle timer, any data)
+{
+	DB_Connect();
 	return Plugin_Stop;
 }
