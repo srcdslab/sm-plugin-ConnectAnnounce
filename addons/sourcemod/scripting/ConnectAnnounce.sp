@@ -23,6 +23,8 @@
 #define MAX_SQL_QUERY_LENGTH 1024
 #define MAX_CHAT_LENGTH      256
 
+bool g_bLate = false;
+
 char g_sDataFile[128];
 char g_sCustomMessageFile[128];
 
@@ -82,8 +84,14 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.1",
+	version     = "2.5.2",
 	url         = ""
+}
+
+public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int errorSize)
+{
+	g_bLate = bLate;
+	return APLRes_Success;
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -111,6 +119,15 @@ public void OnPluginStart()
 	RegAdminCmd("sm_joinmsg_ban", Command_Ban, ADMFLAG_BAN, "Ban a player custom message (-1 = Unban)");
 
 	AutoExecConfig(true);
+
+	if (g_bLate)
+	{
+		for (int i = 1; i <= MaxClients; i++)
+		{
+			if (IsClientInGame(i) && !IsFakeClient(i))
+				OnClientAuthorized(i);
+		}
+	}
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -671,9 +688,10 @@ stock void DB_Disconnect()
 
 	g_DatabaseState = DatabaseState_Disconnected;
 }
+
 stock bool DB_Connect()
 {
-	//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
+		//PrintToServer("DB_Connect(handle %d, state %d, lock %d)", g_hDatabase, g_DatabaseState, g_iConnectLock);
 
 	if (g_hDatabase != null && g_DatabaseState == DatabaseState_Connected)
 		return true;
@@ -716,17 +734,17 @@ public void GotDatabase(Database db, const char[] error, any data)
 		return;
 	}
 
+	g_iConnectLock = 0;
+	g_DatabaseState = DatabaseState_Connected;
+	g_hDatabase = db;
+
 	char sDriver[16];
-	SQL_GetDriverIdent(g_hDatabase, sDriver, sizeof(sDriver));
+	SQL_GetDriverIdent(SQL_ReadDriver(g_hDatabase), sDriver, sizeof(sDriver));
 
 	if (!strncmp(sDriver, "my", 2, false))
 		g_bSQLite = false;
 	else
 		g_bSQLite = true;
-
-	g_iConnectLock = 0;
-	g_DatabaseState = DatabaseState_Connected;
-	g_hDatabase = db;
 
 	DB_SetNames(db);
 	DB_CreateTable(db);
@@ -763,6 +781,9 @@ stock void DB_Reconnect()
 
 stock void DB_SetNames(Database db)
 {
+	if (g_bSQLite)
+		return;
+
 	static int retries = 0;
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	Format(sQuery, sizeof(sQuery), "SET NAMES \"%s\"", CHARSET);
@@ -810,8 +831,7 @@ stock void DB_CreateTable(Database db)
 			`message` TEXT, \
 			`is_banned` INTEGER DEFAULT -1, \
 			PRIMARY KEY(`steamid`) \
-			) CHARACTER SET %s COLLATE %s;"
-			, CHARSET, COLLATION
+			);"
 		);
 	else
 		FormatEx(sQuery, sizeof(sQuery),
@@ -963,8 +983,16 @@ stock void SQLInsertUpdate_JoinClient(int client)
 	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
 	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
 
-	Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-		g_sAuthID[client], sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+	if (g_bSQLite)
+	{
+		Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON CONFLICT(`steamid`) DO UPDATE SET name=excluded.name, message=excluded.message;",
+			g_sAuthID[client], sClientNameEscaped, sMessageEscaped);
+	}
+	else
+	{
+		Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
+			g_sAuthID[client], sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+	}
 
 	if (DB_Connect())
 	{
