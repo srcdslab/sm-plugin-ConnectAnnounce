@@ -2,6 +2,7 @@
 
 #include <sourcemod>
 #include <geoip>
+#include <regex>
 #include <multicolors>
 
 #undef REQUIRE_PLUGIN
@@ -84,7 +85,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.2",
+	version     = "2.5.3",
 	url         = ""
 }
 
@@ -962,7 +963,6 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 
 	if (g_iClientJoinMessageBanned[client] != -1)
 		return;
-
 	int iUserSerial = GetClientSerial(client);
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
 }
@@ -1342,7 +1342,15 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	{
 		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
 	}
-
+	
+	// Check message length to prevent SayText2 limit (255 bytes)
+	int messageLength = strlen(sFinalMessage);
+	if (messageLength >= 255)
+	{
+		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is 255 bytes. {fullred}Please shorten it.", messageLength);
+		return;
+	}
+	
 	if (sendToAll)
 		CPrintToChatAll(sFinalMessage);
 	else
