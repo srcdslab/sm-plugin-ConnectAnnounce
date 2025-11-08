@@ -85,7 +85,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.3",
+	version     = "2.5.4",
 	url         = ""
 }
 
@@ -314,7 +314,7 @@ public void OnClientPostAdminCheck(int client)
 			return;
 
 		int iUserSerial = GetClientSerial(client);
-		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
+		CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial, TIMER_FLAG_NO_MAPCHANGE);
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0 && g_DatabaseState == DatabaseState_Connected)
 	{
@@ -382,7 +382,7 @@ public Action Command_JoinMsg(int client, int args)
 	{
 		char sArg[256];
 		GetCmdArgString(sArg, sizeof(sArg));
-		
+
 		ReplaceString(sArg, sizeof(sArg), "%d", "d"); // Fix String formatted incorrectly by adding a new parameter
 		ReplaceString(sArg, sizeof(sArg), "%i", "i"); // https://github.com/srcdslab/sm-plugin-ConnectAnnounce/issues/2
 		ReplaceString(sArg, sizeof(sArg), "%u", "u");
@@ -621,7 +621,7 @@ public void OnHLStatsXConnect(Database db, const char[] error, any data)
 		LogError("HLStatsX: Could not connect to database: %s", error);
 		return;
 	}
-	
+
 	LogMessage("Connected to HLStatsX database.");
 
 	//PrintToServer("GotDatabase(data: %d, lock: %d, g_h: %d, db: %d)", data, g_iHLXLock, g_hHlstatsx_Database, db);
@@ -673,7 +673,7 @@ stock void Hlstatsx_DB_Reconnect()
 {
 	if (GetConVarBool(g_hCvar_UseHlstatsx) == false)
 		return;
-		
+
 	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
 	HlstatsxDB_Connect();
 }
@@ -825,7 +825,7 @@ stock void DB_CreateTable(Database db)
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 
 	if (g_bSQLite)
-		FormatEx(sQuery, sizeof(sQuery), 
+		FormatEx(sQuery, sizeof(sQuery),
 			"CREATE TABLE IF NOT EXISTS `join` ( \
 			`steamid` TEXT NOT NULL, \
 			`name` TEXT NOT NULL, \
@@ -932,7 +932,7 @@ public Action TimerDB_SelectJoin(Handle timer, int userid)
 	int client = GetClientOfUserId(userid);
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return Plugin_Stop;
-		
+
 	SQLSelect_Join(client);
 	return Plugin_Stop;
 }
@@ -964,7 +964,7 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	if (g_iClientJoinMessageBanned[client] != -1)
 		return;
 	int iUserSerial = GetClientSerial(client);
-	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial);
+	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 stock void SQLInsertUpdate_JoinClient(int client)
@@ -978,7 +978,7 @@ stock void SQLInsertUpdate_JoinClient(int client)
 	char sClientNameEscaped[32];
 	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
 	int userid = GetClientUserId(client);
-	
+
 	FormatEx(sClientName, sizeof(sClientName), "%N", client);
 	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
 	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
@@ -1021,7 +1021,7 @@ public Action TimerDB_InsertUpdateJoin(Handle timer, int userid)
 	int client = GetClientOfUserId(userid);
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return Plugin_Stop;
-		
+
 	SQLInsertUpdate_JoinClient(client);
 	return Plugin_Stop;
 }
@@ -1108,7 +1108,7 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 	g_hCvar_HLXGameSv.GetString(sGamecode, sizeof(sGamecode));
 
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	Format(sQuery, sizeof(sQuery), 
+	Format(sQuery, sizeof(sQuery),
 		"SELECT (SELECT COUNT(DISTINCT skill) FROM hlstats_Players WHERE game = '%s' AND skill >= (SELECT skill FROM hlstats_Players WHERE game = '%s' AND playerid = %d)) AS rank",
 		sGamecode, sGamecode, iPlayerId);
 	g_hHlstatsx_Database.Query(SQLSelect_HlstatsxCB2, sQuery, GetClientUserId(client));
@@ -1342,15 +1342,16 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	{
 		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
 	}
-	
+
 	// Check message length to prevent SayText2 limit (255 bytes)
 	int messageLength = strlen(sFinalMessage);
-	if (messageLength >= 255)
+	int maxLength = sizeof(sFinalMessage) - 1;
+	if (messageLength >= maxLength)
 	{
-		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is 255 bytes. {fullred}Please shorten it.", messageLength);
+		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is %d bytes. {fullred}Please shorten it.", messageLength, maxLength);
 		return;
 	}
-	
+
 	if (sendToAll)
 		CPrintToChatAll(sFinalMessage);
 	else
