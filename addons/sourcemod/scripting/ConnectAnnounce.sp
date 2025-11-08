@@ -1345,9 +1345,10 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	// Check message length to prevent SayText2 limit (255 bytes)
 	int messageLength = strlen(sFinalMessage);
-	if (messageLength >= sizeof(sFinalMessage) - 1)
+	int maxLength = sizeof(sFinalMessage) - 1;
+	if (messageLength >= maxLength)
 	{
-		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is 255 bytes. {fullred}Please shorten it.", messageLength);
+		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is %d bytes. {fullred}Please shorten it.", messageLength, maxLength);
 		return;
 	}
 
