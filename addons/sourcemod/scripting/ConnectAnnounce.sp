@@ -85,7 +85,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.4",
+	version     = "2.5.5",
 	url         = ""
 }
 
