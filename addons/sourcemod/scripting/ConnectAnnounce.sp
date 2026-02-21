@@ -1124,228 +1124,13 @@ public void HLX_SQLSelectplayerId(Database db, DBResultSet results, const char[]
 public void Announcer(int client, int iRank, bool sendToAll)
 {
 	char sFinalMessage[MAX_CHAT_LENGTH * 2];
-	static char sCountry[32];
 
 	strcopy(sFinalMessage, sizeof(sFinalMessage), g_sJoinMessageTemplate);
 
-	AdminId aid;
-
-	if (StrContains(sFinalMessage, "{PLAYERTYPE}"))
-	{
-		aid = GetUserAdmin(client);
-
-		char sPlayerType[256] = "";
-
-		// Admin Type
-		if (GetAdminFlag(aid, Admin_Generic) || GetAdminFlag(aid, Admin_Root) || GetAdminFlag(aid, Admin_RCON) || GetAdminFlag(aid, Admin_Custom1))
-		{
-			bool bGroupFound = false;
-			char group[64];
-			int  iGroupCount = GetAdminGroupCount(aid);
-			for (int i = 0; i < iGroupCount; i++)
-			{
-				GroupId gid = GetAdminGroup(aid, i, group, sizeof(group));
-				if (gid != INVALID_GROUP_ID && (GetAdmGroupAddFlag(gid, Admin_Generic) || GetAdmGroupAddFlag(gid, Admin_Root) || GetAdmGroupAddFlag(gid, Admin_RCON)))
-				{
-					sPlayerType = group;
-					bGroupFound = true;
-					break;
-				}
-				else if (gid != INVALID_GROUP_ID && GetAdmGroupAddFlag(gid, Admin_Custom1))
-				{
-					sPlayerType = group;
-					bGroupFound = true;
-				}
-			}
-
-			if (!bGroupFound)
-			{
-				if (GetAdminFlag(aid, Admin_Root))
-					sPlayerType = "Community Manager";
-				else if (GetAdminFlag(aid, Admin_RCON))
-					sPlayerType = "Server Manager";
-				else if (GetAdminFlag(aid, Admin_Generic))
-					sPlayerType = "Admin";
-				else if (GetAdminFlag(aid, Admin_Custom1))
-					sPlayerType = "VIP";
-			}
-		}
-
-		// Player Type
-		if (!sPlayerType[0])
-		{
-			if (GetAdminFlag(aid, Admin_Custom5))
-				sPlayerType = "Supporter";
-			else if (GetAdminFlag(aid, Admin_Custom6))
-				sPlayerType = "Member";
-			else
-				sPlayerType = "Player";
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{PLAYERTYPE}", sPlayerType);
-	}
-
-	if (StrContains(sFinalMessage, "{RANK}"))
-	{
-		char sBuffer[16];
-		if (iRank != -1)
-			Format(sBuffer, sizeof(sBuffer), "#%d", iRank);
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{RANK}", sBuffer);
-	}
-
-#if defined _PlayerManager_included
-	if (StrContains(sFinalMessage, "{NOSTEAM}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_PlayerManager && !PM_IsPlayerSteam(client))
-			Format(sBuffer, sizeof(sBuffer), " <NoSteam>");
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NOSTEAM}", sBuffer);
-	}
-#endif
-
-#if defined _EntWatch_include
-	if (StrContains(sFinalMessage, "{EBANS}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_EntWatch)
-		{
-			int iEntWatch = EntWatch_GetClientEbansNumber(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iEntWatch, "EBans");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{EBANS}", sBuffer);
-	}
-#endif
-
-#if defined _KnockbackRestrict_included_
-	if (StrContains(sFinalMessage, "{KBANS}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_KbRestrict)
-		{
-			int iKbans = KR_GetClientKbansNumber(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iKbans, "KBans");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{KBANS}", sBuffer);
-	}
-#endif
-
-#if defined _sourcebanschecker_included
-	if (StrContains(sFinalMessage, "{BANS}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_SbChecker_Bans)
-		{
-			int iSbans = SBPP_CheckerGetClientsBans(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iSbans, "Bans");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
-	}
-
-	if (StrContains(sFinalMessage, "{COMMS}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_SbChecker_Comms)
-		{
-			int iComms = SBPP_CheckerGetClientsComms(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iComms, "Comms");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
-	}
-
-	if (StrContains(sFinalMessage, "{MUTES}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_SbChecker_Mutes)
-		{
-			int iMutes = SBPP_CheckerGetClientsMutes(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iMutes, "Mutes");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{MUTES}", sBuffer);
-	}
-
-	if (StrContains(sFinalMessage, "{GAGS}"))
-	{
-		char sBuffer[16];
-		if (g_bNative_SbChecker_Gags)
-		{
-			int iGags = SBPP_CheckerGetClientsGags(client);
-			FormatBanCount(sBuffer, sizeof(sBuffer), iGags, "Gags");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{GAGS}", sBuffer);
-	}
-#endif
-
-	if (StrContains(sFinalMessage, "{STEAMID}"))
-	{
-		char sBuffer[32];
-		AuthIdType authType = view_as<AuthIdType>(g_hCvar_AuthIdType.IntValue);
-
-		if (authType == AuthId_Steam2)
-			Format(sBuffer, sizeof(sBuffer), "%s", g_sAuthID[client]);
-		else
-			GetClientAuthId(client, authType, sBuffer, sizeof(sBuffer));
-
-		if (authType == AuthId_Steam3)
-		{
-			ReplaceString(sBuffer, sizeof(sBuffer), "[", "");
-			ReplaceString(sBuffer, sizeof(sBuffer), "]", "");
-		}
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", sBuffer);
-	}
-
-	if (StrContains(sFinalMessage, "{NAME}"))
-	{
-		char sPlayerName[64];
-		GetClientName(client, sPlayerName, sizeof(sPlayerName));
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", sPlayerName);
-	}
-
-	if (StrContains(sFinalMessage, "{COUNTRY}"))
-	{
-		char  sCountryColor[64] = "";
-		Regex regexHEX          = CompileRegex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
-		Regex regexColor        = CompileRegex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
-
-		if ((MatchRegex(regexHEX, sFinalMessage) >= 1 && GetRegexSubString(regexHEX, 0, sCountryColor, sizeof(sCountryColor)))
-			|| (MatchRegex(regexColor, sFinalMessage) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
-		{
-			ReplaceString(sFinalMessage, sizeof(sFinalMessage), sCountryColor, "");
-			char[] sTagCountryColor = "{COUNTRY_COLOR:";
-			int iStartPos           = strlen(sTagCountryColor);
-			Format(sCountryColor, sizeof(sCountryColor), "%s", sCountryColor[iStartPos - 1]);
-			sCountryColor[0] = '{';
-		}
-
-		char sIP[64], sBuffer[128];
-		GetClientIP(client, sIP, sizeof(sIP));
-		if (GeoipCountry(sIP, sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
-			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
-
-		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COUNTRY}", sBuffer);
-
-		delete regexHEX;
-		delete regexColor;
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
-	{
-		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
-	}
+	int messageLength = FormatAnnouncerMsg(client, iRank, sFinalMessage, sizeof(sFinalMessage));
 
 	// Check message length to prevent SayText2 limit (255 bytes)
-	int messageLength = strlen(sFinalMessage);
-	int maxLength = sizeof(sFinalMessage) - 1;
+	int maxLength = MAX_CHAT_LENGTH - 15; // -15 to be safe
 	if (messageLength >= maxLength)
 	{
 		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is %d bytes. {fullred}Please shorten it.", messageLength, maxLength);
@@ -1404,4 +1189,223 @@ public Action Timer_DelayedDBConnect(Handle timer, any data)
 {
 	DB_Connect();
 	return Plugin_Stop;
+}
+
+int FormatAnnouncerMsg(int client, int iRank, char[] format, int maxlen)
+{
+	static char sCountry[32];
+	AdminId aid;
+
+	if (StrContains(format, "{PLAYERTYPE}"))
+	{
+		aid = GetUserAdmin(client);
+
+		char sPlayerType[256] = "";
+
+		// Admin Type
+		if (GetAdminFlag(aid, Admin_Generic) || GetAdminFlag(aid, Admin_Root) || GetAdminFlag(aid, Admin_RCON) || GetAdminFlag(aid, Admin_Custom1))
+		{
+			bool bGroupFound = false;
+			char group[64];
+			int  iGroupCount = GetAdminGroupCount(aid);
+			for (int i = 0; i < iGroupCount; i++)
+			{
+				GroupId gid = GetAdminGroup(aid, i, group, sizeof(group));
+				if (gid != INVALID_GROUP_ID && (GetAdmGroupAddFlag(gid, Admin_Generic) || GetAdmGroupAddFlag(gid, Admin_Root) || GetAdmGroupAddFlag(gid, Admin_RCON)))
+				{
+					sPlayerType = group;
+					bGroupFound = true;
+					break;
+				}
+				else if (gid != INVALID_GROUP_ID && GetAdmGroupAddFlag(gid, Admin_Custom1))
+				{
+					sPlayerType = group;
+					bGroupFound = true;
+				}
+			}
+
+			if (!bGroupFound)
+			{
+				if (GetAdminFlag(aid, Admin_Root))
+					sPlayerType = "Community Manager";
+				else if (GetAdminFlag(aid, Admin_RCON))
+					sPlayerType = "Server Manager";
+				else if (GetAdminFlag(aid, Admin_Generic))
+					sPlayerType = "Admin";
+				else if (GetAdminFlag(aid, Admin_Custom1))
+					sPlayerType = "VIP";
+			}
+		}
+
+		// Player Type
+		if (!sPlayerType[0])
+		{
+			if (GetAdminFlag(aid, Admin_Custom5))
+				sPlayerType = "Supporter";
+			else if (GetAdminFlag(aid, Admin_Custom6))
+				sPlayerType = "Member";
+			else
+				sPlayerType = "Player";
+		}
+
+		ReplaceString(format, maxlen, "{PLAYERTYPE}", sPlayerType);
+	}
+
+	if (StrContains(format, "{RANK}"))
+	{
+		char sBuffer[16];
+		if (iRank != -1)
+			Format(sBuffer, sizeof(sBuffer), "#%d", iRank);
+
+		ReplaceString(format, maxlen, "{RANK}", sBuffer);
+	}
+
+#if defined _PlayerManager_included
+	if (StrContains(format, "{NOSTEAM}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_PlayerManager && !PM_IsPlayerSteam(client))
+			Format(sBuffer, sizeof(sBuffer), " <NoSteam>");
+
+		ReplaceString(format, maxlen, "{NOSTEAM}", sBuffer);
+	}
+#endif
+
+#if defined _EntWatch_include
+	if (StrContains(format, "{EBANS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_EntWatch)
+		{
+			int iEntWatch = EntWatch_GetClientEbansNumber(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iEntWatch, "EBans");
+		}
+
+		ReplaceString(format, maxlen, "{EBANS}", sBuffer);
+	}
+#endif
+
+#if defined _KnockbackRestrict_included_
+	if (StrContains(format, "{KBANS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_KbRestrict)
+		{
+			int iKbans = KR_GetClientKbansNumber(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iKbans, "KBans");
+		}
+
+		ReplaceString(format, maxlen, "{KBANS}", sBuffer);
+	}
+#endif
+
+#if defined _sourcebanschecker_included
+	if (StrContains(format, "{BANS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Bans)
+		{
+			int iSbans = SBPP_CheckerGetClientsBans(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iSbans, "Bans");
+		}
+
+		ReplaceString(format, maxlen, "{BANS}", sBuffer);
+	}
+
+	if (StrContains(format, "{COMMS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Comms)
+		{
+			int iComms = SBPP_CheckerGetClientsComms(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iComms, "Comms");
+		}
+
+		ReplaceString(format, maxlen, "{COMMS}", sBuffer);
+	}
+
+	if (StrContains(format, "{MUTES}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Mutes)
+		{
+			int iMutes = SBPP_CheckerGetClientsMutes(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iMutes, "Mutes");
+		}
+
+		ReplaceString(format, maxlen, "{MUTES}", sBuffer);
+	}
+
+	if (StrContains(format, "{GAGS}"))
+	{
+		char sBuffer[16];
+		if (g_bNative_SbChecker_Gags)
+		{
+			int iGags = SBPP_CheckerGetClientsGags(client);
+			FormatBanCount(sBuffer, sizeof(sBuffer), iGags, "Gags");
+		}
+
+		ReplaceString(format, maxlen, "{GAGS}", sBuffer);
+	}
+#endif
+
+	if (StrContains(format, "{STEAMID}"))
+	{
+		char sBuffer[32];
+		AuthIdType authType = view_as<AuthIdType>(g_hCvar_AuthIdType.IntValue);
+
+		if (authType == AuthId_Steam2)
+			Format(sBuffer, sizeof(sBuffer), "%s", g_sAuthID[client]);
+		else
+			GetClientAuthId(client, authType, sBuffer, sizeof(sBuffer));
+
+		if (authType == AuthId_Steam3)
+		{
+			ReplaceString(sBuffer, sizeof(sBuffer), "[", "");
+			ReplaceString(sBuffer, sizeof(sBuffer), "]", "");
+		}
+
+		ReplaceString(format, maxlen, "{STEAMID}", sBuffer);
+	}
+
+	if (StrContains(format, "{NAME}"))
+	{
+		char sPlayerName[64];
+		GetClientName(client, sPlayerName, sizeof(sPlayerName));
+		ReplaceString(format, maxlen, "{NAME}", sPlayerName);
+	}
+
+	if (StrContains(format, "{COUNTRY}"))
+	{
+		char  sCountryColor[64] = "";
+		Regex regexHEX          = CompileRegex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
+		Regex regexColor        = CompileRegex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
+
+		if ((MatchRegex(regexHEX, format) >= 1 && GetRegexSubString(regexHEX, 0, sCountryColor, sizeof(sCountryColor)))
+			|| (MatchRegex(regexColor, format) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
+		{
+			ReplaceString(format, maxlen, sCountryColor, "");
+			char[] sTagCountryColor = "{COUNTRY_COLOR:";
+			int iStartPos           = strlen(sTagCountryColor);
+			Format(sCountryColor, sizeof(sCountryColor), "%s", sCountryColor[iStartPos - 1]);
+			sCountryColor[0] = '{';
+		}
+
+		char sIP[64], sBuffer[128];
+		GetClientIP(client, sIP, sizeof(sIP));
+		if (GeoipCountry(sIP, sCountry, sizeof(sCountry)) && strcmp("", sCountry, false) != 0)
+			Format(sBuffer, sizeof(sBuffer), " from %s%s{default}", sCountryColor, sCountry);
+
+		ReplaceString(format, maxlen, "{COUNTRY}", sBuffer);
+
+		delete regexHEX;
+		delete regexColor;
+	}
+
+	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
+	{
+		Format(format, maxlen, "%s %s", format, g_sClientJoinMessage[client]);
+	}
+	
+	return strlen(format);
 }
