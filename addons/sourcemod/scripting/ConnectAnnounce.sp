@@ -23,6 +23,7 @@
 #define HLSTATS_DB_NAME      "hlstatsx"
 #define MAX_SQL_QUERY_LENGTH 1024
 #define MAX_CHAT_LENGTH      256
+#define MAX_SAYTEXT2_LENGTH  249
 
 bool g_bLate = false;
 
@@ -85,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.5",
+	version     = "2.5.6",
 	url         = ""
 }
 
@@ -281,6 +282,7 @@ public void OnClientPostAdminCheck(int client)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
+		bool bNeedsLocalSave = false;
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
 		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
@@ -302,6 +304,17 @@ public void OnClientPostAdminCheck(int client)
 				g_iClientJoinMessageBanned[client] = iBannedTime;
 
 			KvGetString(hCustomMessageFile, "message", g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "");
+			if (SanitizeClientJoinMessage(client))
+			{
+				KvSetString(hCustomMessageFile, "message", g_sClientJoinMessage[client]);
+				bNeedsLocalSave = true;
+			}
+		}
+
+		if (bNeedsLocalSave)
+		{
+			KvRewind(hCustomMessageFile);
+			KeyValuesToFile(hCustomMessageFile, g_sCustomMessageFile);
 		}
 
 		if (hCustomMessageFile != null)
@@ -383,21 +396,8 @@ public Action Command_JoinMsg(int client, int args)
 		char sArg[256];
 		GetCmdArgString(sArg, sizeof(sArg));
 
-		ReplaceString(sArg, sizeof(sArg), "%d", "d"); // Fix String formatted incorrectly by adding a new parameter
-		ReplaceString(sArg, sizeof(sArg), "%i", "i"); // https://github.com/srcdslab/sm-plugin-ConnectAnnounce/issues/2
-		ReplaceString(sArg, sizeof(sArg), "%u", "u");
-		ReplaceString(sArg, sizeof(sArg), "%b", "b");
-		ReplaceString(sArg, sizeof(sArg), "%f", "f");
-		ReplaceString(sArg, sizeof(sArg), "%x", "x");
-		ReplaceString(sArg, sizeof(sArg), "%X", "X");
-		ReplaceString(sArg, sizeof(sArg), "%s", "s");
-		ReplaceString(sArg, sizeof(sArg), "%t", "t");
-		ReplaceString(sArg, sizeof(sArg), "%T", "T");
-		ReplaceString(sArg, sizeof(sArg), "%c", "C");
-		ReplaceString(sArg, sizeof(sArg), "%L", "L");
-		ReplaceString(sArg, sizeof(sArg), "%N", "N");
-
 		g_sClientJoinMessage[client] = sArg;
+		SanitizeClientJoinMessage(client);
 
 		if (strcmp(sStorageType, "local", false) == 0)
 		{
@@ -884,6 +884,44 @@ public void Query_ErrorCheck(Database db, DBResultSet results, const char[] erro
 	}
 }
 
+stock bool SanitizeClientJoinMessage(int client)
+{
+	char sOriginalMessage[MAX_CHAT_LENGTH];
+	strcopy(sOriginalMessage, sizeof(sOriginalMessage), g_sClientJoinMessage[client]);
+
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%d", "d");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%i", "i");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%u", "u");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%b", "b");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%f", "f");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%x", "x");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%X", "X");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%s", "s");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%t", "t");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%T", "T");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%c", "C");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%L", "L");
+	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%N", "N");
+
+	// Un-comment if you want to remove colors tags from the join message
+	// CRemoveTags(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
+
+	return strcmp(sOriginalMessage, g_sClientJoinMessage[client], false) != 0;
+}
+
+stock void SQLUpdateSanitizedJoinMessage(int client)
+{
+	if (g_DatabaseState != DatabaseState_Connected || g_hDatabase == null)
+		return;
+
+	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
+	char sQuery[MAX_SQL_QUERY_LENGTH];
+
+	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
+	Format(sQuery, sizeof(sQuery), "UPDATE `join` SET `message` = '%s' WHERE `steamid` = '%s';", sMessageEscaped, g_sAuthID[client]);
+	g_hDatabase.Query(Query_ErrorCheck, sQuery);
+}
+
 public Action TimerDB_Reconnect(Handle timer, any data)
 {
 	DB_Reconnect();
@@ -957,6 +995,8 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	{
 		results.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
 		g_iClientJoinMessageBanned[client] = results.FetchInt(1);
+		if (SanitizeClientJoinMessage(client))
+			SQLUpdateSanitizedJoinMessage(client);
 	}
 
 	delete results;
@@ -1336,20 +1376,35 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		delete regexColor;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	int baseLength = strlen(sFinalMessage);
+	if (baseLength > MAX_SAYTEXT2_LENGTH)
+	{
+		sFinalMessage[MAX_SAYTEXT2_LENGTH] = '\0';
+		baseLength = MAX_SAYTEXT2_LENGTH;
+		CPrintToChat(client, "{green}[ConnectAnnounce] {red}Announcement truncated. {default}Use sm_joinmsg to shorten it.");
+	}
 
 	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
 	{
-		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
-	}
+		char sSafeJoinMessage[MAX_CHAT_LENGTH];
+		strcopy(sSafeJoinMessage, sizeof(sSafeJoinMessage), g_sClientJoinMessage[client]);
 
-	// Check message length to prevent SayText2 limit (255 bytes)
-	int messageLength = strlen(sFinalMessage);
-	int maxLength = sizeof(sFinalMessage) - 1;
-	if (messageLength >= maxLength)
-	{
-		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is %d bytes. {fullred}Please shorten it.", messageLength, maxLength);
-		return;
+		int availableLength = MAX_SAYTEXT2_LENGTH - baseLength;
+		if (availableLength <= 1)
+		{
+			CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message skipped (too long). {default}Use sm_joinmsg.");
+		}
+		else
+		{
+			int joinMaxLength = availableLength - 1;
+			if (strlen(sSafeJoinMessage) > joinMaxLength)
+			{
+				sSafeJoinMessage[joinMaxLength] = '\0';
+				CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message truncated. {default}Use sm_joinmsg.");
+			}
+
+			Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, sSafeJoinMessage);
+		}
 	}
 
 	if (sendToAll)
