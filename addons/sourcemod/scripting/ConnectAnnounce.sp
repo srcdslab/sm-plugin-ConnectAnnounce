@@ -282,7 +282,6 @@ public void OnClientPostAdminCheck(int client)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		bool bNeedsLocalSave = false;
 		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
 
 		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
@@ -304,17 +303,6 @@ public void OnClientPostAdminCheck(int client)
 				g_iClientJoinMessageBanned[client] = iBannedTime;
 
 			KvGetString(hCustomMessageFile, "message", g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "");
-			if (SanitizeClientJoinMessage(client))
-			{
-				KvSetString(hCustomMessageFile, "message", g_sClientJoinMessage[client]);
-				bNeedsLocalSave = true;
-			}
-		}
-
-		if (bNeedsLocalSave)
-		{
-			KvRewind(hCustomMessageFile);
-			KeyValuesToFile(hCustomMessageFile, g_sCustomMessageFile);
 		}
 
 		if (hCustomMessageFile != null)
@@ -397,7 +385,6 @@ public Action Command_JoinMsg(int client, int args)
 		GetCmdArgString(sArg, sizeof(sArg));
 
 		g_sClientJoinMessage[client] = sArg;
-		SanitizeClientJoinMessage(client);
 
 		if (strcmp(sStorageType, "local", false) == 0)
 		{
@@ -884,30 +871,6 @@ public void Query_ErrorCheck(Database db, DBResultSet results, const char[] erro
 	}
 }
 
-stock bool SanitizeClientJoinMessage(int client)
-{
-	char sOriginalMessage[MAX_CHAT_LENGTH];
-	strcopy(sOriginalMessage, sizeof(sOriginalMessage), g_sClientJoinMessage[client]);
-
-	// Uncomment if you want to remove colors tags from the join message
-	// CRemoveTags(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
-
-	return strcmp(sOriginalMessage, g_sClientJoinMessage[client], false) != 0;
-}
-
-stock void SQLUpdateSanitizedJoinMessage(int client)
-{
-	if (g_DatabaseState != DatabaseState_Connected || g_hDatabase == null)
-		return;
-
-	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
-	char sQuery[MAX_SQL_QUERY_LENGTH];
-
-	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
-	Format(sQuery, sizeof(sQuery), "UPDATE `join` SET `message` = '%s' WHERE `steamid` = '%s';", sMessageEscaped, g_sAuthID[client]);
-	g_hDatabase.Query(Query_ErrorCheck, sQuery);
-}
-
 public Action TimerDB_Reconnect(Handle timer, any data)
 {
 	DB_Reconnect();
@@ -981,8 +944,6 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	{
 		results.FetchString(0, g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
 		g_iClientJoinMessageBanned[client] = results.FetchInt(1);
-		if (SanitizeClientJoinMessage(client))
-			SQLUpdateSanitizedJoinMessage(client);
 	}
 
 	delete results;
