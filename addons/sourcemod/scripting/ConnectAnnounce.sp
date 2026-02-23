@@ -23,6 +23,7 @@
 #define HLSTATS_DB_NAME      "hlstatsx"
 #define MAX_SQL_QUERY_LENGTH 1024
 #define MAX_CHAT_LENGTH      256
+#define MAX_SAYTEXT2_LENGTH  249
 
 bool g_bLate = false;
 
@@ -85,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.5",
+	version     = "2.5.6",
 	url         = ""
 }
 
@@ -382,20 +383,6 @@ public Action Command_JoinMsg(int client, int args)
 	{
 		char sArg[256];
 		GetCmdArgString(sArg, sizeof(sArg));
-
-		ReplaceString(sArg, sizeof(sArg), "%d", "d"); // Fix String formatted incorrectly by adding a new parameter
-		ReplaceString(sArg, sizeof(sArg), "%i", "i"); // https://github.com/srcdslab/sm-plugin-ConnectAnnounce/issues/2
-		ReplaceString(sArg, sizeof(sArg), "%u", "u");
-		ReplaceString(sArg, sizeof(sArg), "%b", "b");
-		ReplaceString(sArg, sizeof(sArg), "%f", "f");
-		ReplaceString(sArg, sizeof(sArg), "%x", "x");
-		ReplaceString(sArg, sizeof(sArg), "%X", "X");
-		ReplaceString(sArg, sizeof(sArg), "%s", "s");
-		ReplaceString(sArg, sizeof(sArg), "%t", "t");
-		ReplaceString(sArg, sizeof(sArg), "%T", "T");
-		ReplaceString(sArg, sizeof(sArg), "%c", "C");
-		ReplaceString(sArg, sizeof(sArg), "%L", "L");
-		ReplaceString(sArg, sizeof(sArg), "%N", "N");
 
 		g_sClientJoinMessage[client] = sArg;
 
@@ -1336,26 +1323,46 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		delete regexColor;
 	}
 
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	int baseLength = strlen(sFinalMessage);
+	static bool bLoggedLengthError = false;
+	if (baseLength > MAX_SAYTEXT2_LENGTH)
+	{
+		sFinalMessage[MAX_SAYTEXT2_LENGTH] = '\0';
+		baseLength = MAX_SAYTEXT2_LENGTH;
+		if (!bLoggedLengthError)
+		{
+			LogError("Announcement truncated to fit chat limit. Shorten the base template, player name, or country text.");
+			bLoggedLengthError = true;
+		}
+	}
 
 	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
 	{
-		Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, g_sClientJoinMessage[client]);
-	}
+		char sSafeJoinMessage[MAX_CHAT_LENGTH];
+		strcopy(sSafeJoinMessage, sizeof(sSafeJoinMessage), g_sClientJoinMessage[client]);
 
-	// Check message length to prevent SayText2 limit (255 bytes)
-	int messageLength = strlen(sFinalMessage);
-	int maxLength = sizeof(sFinalMessage) - 1;
-	if (messageLength >= maxLength)
-	{
-		CPrintToChat(client, "{red}[ConnectAnnounce] Your join message is too long (%d bytes). Maximum possible is %d bytes. {fullred}Please shorten it.", messageLength, maxLength);
-		return;
+		int availableLength = MAX_SAYTEXT2_LENGTH - baseLength;
+		if (availableLength <= 1)
+		{
+			CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message skipped (too long). {default}Use sm_joinmsg.");
+		}
+		else
+		{
+			int joinMaxLength = availableLength - 1;
+			if (strlen(sSafeJoinMessage) > joinMaxLength)
+			{
+				sSafeJoinMessage[joinMaxLength] = '\0';
+				CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message truncated. {default}Use sm_joinmsg.");
+			}
+
+			Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, sSafeJoinMessage);
+		}
 	}
 
 	if (sendToAll)
-		CPrintToChatAll(sFinalMessage);
+		CPrintToChatAll("%s", sFinalMessage);
 	else
-		CPrintToChat(client, sFinalMessage);
+		CPrintToChat(client, "%s", sFinalMessage);
 }
 
 stock void FormatBanCount(char[] sOutput, int iOutputSize, int banCount, char[] sInput)
