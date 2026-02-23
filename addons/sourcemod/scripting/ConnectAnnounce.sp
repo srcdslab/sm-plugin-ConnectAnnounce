@@ -889,20 +889,6 @@ stock bool SanitizeClientJoinMessage(int client)
 	char sOriginalMessage[MAX_CHAT_LENGTH];
 	strcopy(sOriginalMessage, sizeof(sOriginalMessage), g_sClientJoinMessage[client]);
 
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%d", "d");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%i", "i");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%u", "u");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%b", "b");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%f", "f");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%x", "x");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%X", "X");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%s", "s");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%t", "t");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%T", "T");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%c", "C");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%L", "L");
-	ReplaceString(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "%N", "N");
-
 	// Un-comment if you want to remove colors tags from the join message
 	// CRemoveTags(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
 
@@ -1408,9 +1394,9 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	}
 
 	if (sendToAll)
-		CPrintToChatAll(sFinalMessage);
+		CPrintToChatAll("%s", sFinalMessage);
 	else
-		CPrintToChat(client, sFinalMessage);
+		CPrintToChat(client, "%s", sFinalMessage);
 }
 
 stock void FormatBanCount(char[] sOutput, int iOutputSize, int banCount, char[] sInput)
