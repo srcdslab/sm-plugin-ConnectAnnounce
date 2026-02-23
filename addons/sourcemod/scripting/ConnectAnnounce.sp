@@ -889,7 +889,7 @@ stock bool SanitizeClientJoinMessage(int client)
 	char sOriginalMessage[MAX_CHAT_LENGTH];
 	strcopy(sOriginalMessage, sizeof(sOriginalMessage), g_sClientJoinMessage[client]);
 
-	// Un-comment if you want to remove colors tags from the join message
+	// Uncomment if you want to remove colors tags from the join message
 	// CRemoveTags(g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]));
 
 	return strcmp(sOriginalMessage, g_sClientJoinMessage[client], false) != 0;
@@ -1363,11 +1363,16 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	}
 
 	int baseLength = strlen(sFinalMessage);
+	static bool bLoggedLengthError = false;
 	if (baseLength > MAX_SAYTEXT2_LENGTH)
 	{
 		sFinalMessage[MAX_SAYTEXT2_LENGTH] = '\0';
 		baseLength = MAX_SAYTEXT2_LENGTH;
-		CPrintToChat(client, "{green}[ConnectAnnounce] {red}Announcement truncated. {default}Use sm_joinmsg to shorten it.");
+		if (!bLoggedLengthError)
+		{
+			LogError("Announcement truncated to fit chat limit. Shorten the base template, player name, or country text.");
+			bLoggedLengthError = true;
+		}
 	}
 
 	if (CheckCommandAccess(client, "sm_joinmsg", ADMFLAG_CUSTOM1) && strcmp(g_sClientJoinMessage[client], "reset", false) != 0 && g_iClientJoinMessageBanned[client] == -1)
