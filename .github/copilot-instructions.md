@@ -16,24 +16,21 @@ This repository contains **ConnectAnnounce**, a SourceMod plugin for Source engi
 ## Technical Environment
 
 - **Language**: SourcePawn
-- **Platform**: SourceMod 1.11+ (see sourceknight.yaml for exact version)
-- **Compiler**: SourcePawn compiler (spcomp) via SourceKnight build system
-- **Build Tool**: SourceKnight (configured in `sourceknight.yaml`)
+- **Platform**: SourceMod 1.12.x
+- **Compiler**: SourcePawn compiler (spcomp) via native GitHub Actions (rumblefrog/setup-sp)
+- **Build Tool**: Native GitHub Actions workflow (configured in `.github/workflows/ci.yml`)
 - **CI/CD**: GitHub Actions (`.github/workflows/ci.yml`)
 
 ## Build System
 
-### SourceKnight Configuration
-The project uses SourceKnight for dependency management and building:
-- **Config File**: `sourceknight.yaml`
-- **Dependencies**: Automatically downloads SourceMod, MultiColors, PlayerManager, SourceBans++, EntWatch, KnockbackRestrict
-- **Output**: Compiled plugins go to `/addons/sourcemod/plugins`
+### GitHub Actions Configuration
+The project uses a native GitHub Actions workflow for dependency management and building:
+- **Config File**: `.github/workflows/ci.yml`
+- **Dependencies**: Cloned at build time via git: MultiColors, PlayerManager, SourceBans++, EntWatch, KnockbackRestrict
+- **Output**: Compiled plugins go to `addons/sourcemod/plugins`
 
 ### Building the Plugin
 ```bash
-# Using SourceKnight (recommended)
-sourceknight build
-
 # Manual compilation (if needed)
 spcomp -i addons/sourcemod/scripting/include addons/sourcemod/scripting/ConnectAnnounce.sp
 ```
@@ -52,7 +49,6 @@ spcomp -i addons/sourcemod/scripting/include addons/sourcemod/scripting/ConnectA
 │   ├── settings.cfg                # Message format configuration
 │   └── custom-messages.cfg         # Custom message templates
 ├── .github/workflows/ci.yml        # CI/CD pipeline
-├── sourceknight.yaml              # Build configuration
 └── README.md                      # Plugin documentation
 ```
 
@@ -150,7 +146,7 @@ The plugin manages its own database tables:
 1. **Small Changes**: Edit `ConnectAnnounce.sp` directly
 2. **New Features**: Consider impact on database schema and configuration
 3. **Testing**: Use development server with SourceMod debugging enabled
-4. **Dependencies**: Update `sourceknight.yaml` if adding new plugin dependencies
+4. **Dependencies**: Update `.github/workflows/ci.yml` if adding new plugin dependencies
 
 ### Common Development Tasks
 
@@ -173,9 +169,6 @@ The plugin manages its own database tables:
 
 #### Pre-commit Checks
 ```bash
-# Build the plugin
-sourceknight build
-
 # Check for compilation errors
 # Validate SQL queries are async
 # Test with development server
