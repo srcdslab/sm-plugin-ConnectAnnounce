@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.6",
+	version     = "2.5.7",
 	url         = ""
 }
 
@@ -962,23 +962,19 @@ stock void SQLInsertUpdate_JoinClient(int client)
 	static int retries = 0;
 	char sClientName[32];
 	char sQuery[MAX_SQL_QUERY_LENGTH];
-	char sClientNameEscaped[32];
-	char sMessageEscaped[2 * MAX_CHAT_LENGTH + 1];
 	int userid = GetClientUserId(client);
 
 	FormatEx(sClientName, sizeof(sClientName), "%N", client);
-	SQL_EscapeString(g_hDatabase, sClientName, sClientNameEscaped, sizeof(sClientNameEscaped));
-	SQL_EscapeString(g_hDatabase, g_sClientJoinMessage[client], sMessageEscaped, sizeof(sMessageEscaped));
 
 	if (g_bSQLite)
 	{
-		Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON CONFLICT(`steamid`) DO UPDATE SET name=excluded.name, message=excluded.message;",
-			g_sAuthID[client], sClientNameEscaped, sMessageEscaped);
+		g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON CONFLICT(`steamid`) DO UPDATE SET name=excluded.name, message=excluded.message;",
+			g_sAuthID[client], sClientName, g_sClientJoinMessage[client]);
 	}
 	else
 	{
-		Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-			g_sAuthID[client], sClientNameEscaped, sMessageEscaped, sClientNameEscaped, sMessageEscaped);
+		g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
+			g_sAuthID[client], sClientName, g_sClientJoinMessage[client], sClientName, g_sClientJoinMessage[client]);
 	}
 
 	if (DB_Connect())
