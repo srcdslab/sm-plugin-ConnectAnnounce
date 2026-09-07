@@ -6,7 +6,7 @@
 #include <multicolors>
 
 #undef REQUIRE_PLUGIN
-#tryinclude <EntWatch>
+#tryinclude <entWatch_core>
 #tryinclude <KnockbackRestrict>
 #tryinclude <sourcebanschecker>
 #tryinclude <PlayerManager>
@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.5.7",
+	version     = "2.6.0",
 	url         = ""
 }
 
@@ -137,7 +137,7 @@ public void OnPluginStart()
 //----------------------------------------------------------------------------------------------------
 public void OnAllPluginsLoaded()
 {
-	g_bEntWatch = LibraryExists("EntWatch");
+	g_bEntWatch = LibraryExists("entWatch-core");
 	g_bKbRestrict = LibraryExists("KnockbackRestrict");
 	g_bSbChecker = LibraryExists("sourcechecker++");
 
@@ -161,7 +161,7 @@ void HandleLibraryChange(const char[] name, bool isAdded = false)
 		g_bPlayerManager = isAdded;
 		VerifyNative_PlayerManager();
 	}
-	else if (strcmp(name, "EntWatch", false) == 0)
+	else if (strcmp(name, "entWatch-core", false) == 0)
 	{
 		g_bEntWatch = isAdded;
 		VerifyNative_EntWatch();
@@ -193,7 +193,7 @@ stock void VerifyNative_PlayerManager()
 
 stock void VerifyNative_EntWatch()
 {
-	g_bNative_EntWatch = g_bEntWatch && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "EntWatch_GetClientEbansNumber") == FeatureStatus_Available;
+	g_bNative_EntWatch = g_bEntWatch && CanTestFeatures() && GetFeatureStatus(FeatureType_Native, "EW_GetClientBanCount") == FeatureStatus_Available;
 }
 
 stock void VerifyNative_KbRestrict()
@@ -1188,13 +1188,15 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	}
 #endif
 
-#if defined _EntWatch_include
+#if defined _entWatch_included
 	if (StrContains(sFinalMessage, "{EBANS}"))
 	{
 		char sBuffer[16];
 		if (g_bNative_EntWatch)
 		{
-			int iEntWatch = EntWatch_GetClientEbansNumber(client);
+			int iEntWatch = EW_GetClientBanCount(client);
+			if (iEntWatch < 0)
+				iEntWatch = 0;
 			FormatBanCount(sBuffer, sizeof(sBuffer), iEntWatch, "EBans");
 		}
 
