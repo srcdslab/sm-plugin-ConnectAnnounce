@@ -14,7 +14,7 @@ ConnectAnnounce is a SourceMod plugin designed to announce player connections wi
   - Connect extension
   - Sourcebans++
   - HLStatsX
-  - EntWatch
+  - EntWatch 4 (`entWatch-core`)
   - KbRestrict
 
 ## Installation

@@ -25,7 +25,7 @@ jobs:
           cp -R deps/playermanager/addons/sourcemod/scripting/include/* addons/sourcemod/scripting/include/
           git clone --depth=1 https://github.com/srcdslab/sourcebans-pp.git deps/sourcebans-pp
           cp -R deps/sourcebans-pp/game/addons/sourcemod/scripting/include/* addons/sourcemod/scripting/include/
-          git clone --depth=1 https://github.com/srcdslab/sm-plugin-EntWatch.git deps/entwatch
+          git clone --depth=1 https://github.com/srcdslab/sm-plugin-entwatch-4.git deps/entwatch
           cp -R deps/entwatch/addons/sourcemod/scripting/include/* addons/sourcemod/scripting/include/
           git clone --depth=1 https://github.com/srcdslab/sm-plugin-KnockbackRestrict.git deps/knockbackrestrict
           cp -R deps/knockbackrestrict/addons/sourcemod/scripting/include/* addons/sourcemod/scripting/include/
