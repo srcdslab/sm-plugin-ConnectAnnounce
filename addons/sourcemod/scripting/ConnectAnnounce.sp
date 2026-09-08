@@ -1168,7 +1168,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{PLAYERTYPE}", sPlayerType);
 	}
 
-	if (StrContains(sFinalMessage, "{RANK}"))
+	if (StrContains(sFinalMessage, "{RANK}") != -1)
 	{
 		char sBuffer[16];
 		if (iRank != -1)
@@ -1178,7 +1178,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	}
 
 #if defined _PlayerManager_included
-	if (StrContains(sFinalMessage, "{NOSTEAM}"))
+	if (StrContains(sFinalMessage, "{NOSTEAM}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_PlayerManager && !PM_IsPlayerSteam(client))
@@ -1189,7 +1189,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #endif
 
 #if defined _entWatch_included
-	if (StrContains(sFinalMessage, "{EBANS}"))
+	if (StrContains(sFinalMessage, "{EBANS}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_EntWatch)
@@ -1205,7 +1205,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #endif
 
 #if defined _KnockbackRestrict_included_
-	if (StrContains(sFinalMessage, "{KBANS}"))
+	if (StrContains(sFinalMessage, "{KBANS}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_KbRestrict)
@@ -1219,7 +1219,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 #endif
 
 #if defined _sourcebanschecker_included
-	if (StrContains(sFinalMessage, "{BANS}"))
+	if (StrContains(sFinalMessage, "{BANS}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_SbChecker_Bans)
@@ -1231,7 +1231,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{BANS}", sBuffer);
 	}
 
-	if (StrContains(sFinalMessage, "{COMMS}"))
+	if (StrContains(sFinalMessage, "{COMMS}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_SbChecker_Comms)
@@ -1243,7 +1243,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{COMMS}", sBuffer);
 	}
 
-	if (StrContains(sFinalMessage, "{MUTES}"))
+	if (StrContains(sFinalMessage, "{MUTES}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_SbChecker_Mutes)
@@ -1255,7 +1255,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{MUTES}", sBuffer);
 	}
 
-	if (StrContains(sFinalMessage, "{GAGS}"))
+	if (StrContains(sFinalMessage, "{GAGS}") != -1)
 	{
 		char sBuffer[16];
 		if (g_bNative_SbChecker_Gags)
@@ -1268,7 +1268,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	}
 #endif
 
-	if (StrContains(sFinalMessage, "{STEAMID}"))
+	if (StrContains(sFinalMessage, "{STEAMID}") != -1)
 	{
 		char sBuffer[32];
 		AuthIdType authType = view_as<AuthIdType>(g_hCvar_AuthIdType.IntValue);
@@ -1287,14 +1287,14 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{STEAMID}", sBuffer);
 	}
 
-	if (StrContains(sFinalMessage, "{NAME}"))
+	if (StrContains(sFinalMessage, "{NAME}") != -1)
 	{
 		char sPlayerName[64];
 		GetClientName(client, sPlayerName, sizeof(sPlayerName));
 		ReplaceString(sFinalMessage, sizeof(sFinalMessage), "{NAME}", sPlayerName);
 	}
 
-	if (StrContains(sFinalMessage, "{COUNTRY}"))
+	if (StrContains(sFinalMessage, "{COUNTRY}") != -1)
 	{
 		char  sCountryColor[64] = "";
 		Regex regexHEX          = CompileRegex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
