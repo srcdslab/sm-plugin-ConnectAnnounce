@@ -877,7 +877,7 @@ public Action TimerDB_Reconnect(Handle timer, any data)
 	return Plugin_Continue;
 }
 
-stock void SQLSelect_Join(int client)
+stock void SQLSelect_Join(int client, int retries = 0)
 {
 	if (g_DatabaseState != DatabaseState_Connected || g_hDatabase == null)
 		return;
@@ -885,7 +885,6 @@ stock void SQLSelect_Join(int client)
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return;
 
-	static int retries = 0;
 	int userid = GetClientUserId(client);
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 
@@ -901,8 +900,7 @@ stock void SQLSelect_Join(int client)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_SelectJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
-			retries++;
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, (retries + 1) << 16 | userid, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 		else
@@ -910,17 +908,16 @@ stock void SQLSelect_Join(int client)
 			PrintToServer("[ConnectAnnounce] Failed to connect to database after %d retries, aborting", retries);
 		}
 	}
-
-	retries = 0;
 }
 
-public Action TimerDB_SelectJoin(Handle timer, int userid)
+public Action TimerDB_SelectJoin(Handle timer, int data)
 {
-	int client = GetClientOfUserId(userid);
+	int retries = data >> 16;
+	int client = GetClientOfUserId(data & 0xFFFF);
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return Plugin_Stop;
 
-	SQLSelect_Join(client);
+	SQLSelect_Join(client, retries);
 	return Plugin_Stop;
 }
 
@@ -954,12 +951,11 @@ stock void OnSQLSelect_Join(Database db, DBResultSet results, const char[] error
 	CreateTimer(ANNOUNCER_DELAY, DelayAnnouncer, iUserSerial, TIMER_FLAG_NO_MAPCHANGE);
 }
 
-stock void SQLInsertUpdate_JoinClient(int client)
+stock void SQLInsertUpdate_JoinClient(int client, int retries = 0)
 {
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return;
 
-	static int retries = 0;
 	char sClientName[32];
 	char sQuery[MAX_SQL_QUERY_LENGTH];
 	int userid = GetClientUserId(client);
@@ -987,8 +983,7 @@ stock void SQLInsertUpdate_JoinClient(int client)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, userid, TIMER_FLAG_NO_MAPCHANGE);
-			retries++;
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, (retries + 1) << 16 | userid, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 		else
@@ -996,16 +991,16 @@ stock void SQLInsertUpdate_JoinClient(int client)
 			PrintToServer("[ConnectAnnounce] Failed to connect to database after %d retries, aborting", retries);
 		}
 	}
-	retries = 0;
 }
 
-public Action TimerDB_InsertUpdateJoin(Handle timer, int userid)
+public Action TimerDB_InsertUpdateJoin(Handle timer, int data)
 {
-	int client = GetClientOfUserId(userid);
+	int retries = data >> 16;
+	int client = GetClientOfUserId(data & 0xFFFF);
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return Plugin_Stop;
 
-	SQLInsertUpdate_JoinClient(client);
+	SQLInsertUpdate_JoinClient(client, retries);
 	return Plugin_Stop;
 }
 
