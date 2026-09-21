@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.6.1",
+	version     = "2.6.2",
 	url         = ""
 }
 
@@ -956,25 +956,26 @@ stock void SQLInsertUpdate_JoinClient(int client, int retries = 0)
 	if (client <= 0 || client > MaxClients || !IsClientInGame(client) || IsFakeClient(client))
 		return;
 
-	char sClientName[32];
-	char sQuery[MAX_SQL_QUERY_LENGTH];
 	int userid = GetClientUserId(client);
-
-	FormatEx(sClientName, sizeof(sClientName), "%N", client);
-
-	if (g_bSQLite)
-	{
-		g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON CONFLICT(`steamid`) DO UPDATE SET name=excluded.name, message=excluded.message;",
-			g_sAuthID[client], sClientName, g_sClientJoinMessage[client]);
-	}
-	else
-	{
-		g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
-			g_sAuthID[client], sClientName, g_sClientJoinMessage[client], sClientName, g_sClientJoinMessage[client]);
-	}
 
 	if (DB_Connect())
 	{
+		char sClientName[32];
+		char sQuery[MAX_SQL_QUERY_LENGTH];
+
+		FormatEx(sClientName, sizeof(sClientName), "%N", client);
+
+		if (g_bSQLite)
+		{
+			g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON CONFLICT(`steamid`) DO UPDATE SET name=excluded.name, message=excluded.message;",
+				g_sAuthID[client], sClientName, g_sClientJoinMessage[client]);
+		}
+		else
+		{
+			g_hDatabase.Format(sQuery, sizeof(sQuery), "INSERT INTO `join` (`steamid`, `name`, `message`) VALUES ('%s', '%s', '%s') ON DUPLICATE KEY UPDATE name='%s', message='%s';",
+				g_sAuthID[client], sClientName, g_sClientJoinMessage[client], sClientName, g_sClientJoinMessage[client]);
+		}
+
 		g_hDatabase.Query(OnSQLInsertUpdate_Join, sQuery, userid);
 	}
 	else
@@ -982,7 +983,7 @@ stock void SQLInsertUpdate_JoinClient(int client, int retries = 0)
 		if (retries < g_cvQueryRetry.IntValue)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
-			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
+			PrintToServer("[ConnectAnnounce] Pending join message update for %s", g_sAuthID[client]);
 			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, ((retries + 1) << 16) | userid, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
