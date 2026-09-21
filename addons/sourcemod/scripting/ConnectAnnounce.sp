@@ -958,8 +958,6 @@ stock void SQLInsertUpdate_JoinClient(int client, int retries = 0)
 
 	int userid = GetClientUserId(client);
 
-	// DB_Connect() only returns true when g_hDatabase is a valid connected handle,
-	// which Database.Format needs, so the query can only be built after this check.
 	if (DB_Connect())
 	{
 		char sClientName[32];
