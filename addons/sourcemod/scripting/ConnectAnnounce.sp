@@ -900,7 +900,7 @@ stock void SQLSelect_Join(int client, int retries = 0)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_SelectJoin, (retries + 1) << 16 | userid, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_SelectJoin, ((retries + 1) << 16) | userid, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 		else
@@ -983,7 +983,7 @@ stock void SQLInsertUpdate_JoinClient(int client, int retries = 0)
 		{
 			PrintToServer("[ConnectAnnounce] Failed to connect to database, retrying... (%d/%d)", retries, g_cvQueryRetry.IntValue);
 			PrintToServer("[ConnectAnnounce] Query: %s", sQuery);
-			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, (retries + 1) << 16 | userid, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(1.2 * retries, TimerDB_InsertUpdateJoin, ((retries + 1) << 16) | userid, TIMER_FLAG_NO_MAPCHANGE);
 			return;
 		}
 		else
