@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.6.2",
+	version     = "2.6.3",
 	url         = ""
 }
 
@@ -244,17 +244,17 @@ public void OnConfigsExecuted()
 			DB_Connect();
 	}
 
-	if (GetConVarBool(g_hCvar_UseHlstatsx))
+	if (g_hCvar_UseHlstatsx.BoolValue)
 	{
 		HlstatsxDB_Connect();
 	}
 
-	Handle hFile = OpenFile(g_sDataFile, "r");
-	if (hFile != INVALID_HANDLE)
+	File hFile = OpenFile(g_sDataFile, "r");
+	if (hFile != null)
 	{
-		ReadFileLine(hFile, g_sJoinMessageTemplate, sizeof(g_sJoinMessageTemplate));
+		hFile.ReadLine(g_sJoinMessageTemplate, sizeof(g_sJoinMessageTemplate));
 		TrimString(g_sJoinMessageTemplate);
-		CloseHandle(hFile);
+		delete hFile;
 	}
 	else
 	{
@@ -282,33 +282,32 @@ public void OnClientPostAdminCheck(int client)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
+		KeyValues hCustomMessageFile = new KeyValues("custom_messages");
 
-		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
+		if (!hCustomMessageFile.ImportFromFile(g_sCustomMessageFile))
 		{
 			SetFailState("[ConnectAnnounce] Config file missing!");
 			return;
 		}
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 
-		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client]))
+		if (hCustomMessageFile.JumpToKey(g_sAuthID[client]))
 		{
 			char sBanned[16];
-			KvGetString(hCustomMessageFile, "banned", sBanned, sizeof(sBanned), "");
+			hCustomMessageFile.GetString("banned", sBanned, sizeof(sBanned), "");
 			int iBannedTime = StringToInt(sBanned, 10);
 			if (strcmp(sBanned, "true", false) == 0)
 				g_iClientJoinMessageBanned[client] = 0;
 			else if (sBanned[0] != '\0')
 				g_iClientJoinMessageBanned[client] = iBannedTime;
 
-			KvGetString(hCustomMessageFile, "message", g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "");
+			hCustomMessageFile.GetString("message", g_sClientJoinMessage[client], sizeof(g_sClientJoinMessage[]), "");
 		}
 
 		if (hCustomMessageFile != null)
 		{
-			CloseHandle(hCustomMessageFile);
-			hCustomMessageFile = null;
+			delete hCustomMessageFile;
 		}
 
 		if (g_iClientJoinMessageBanned[client] != -1)
@@ -358,18 +357,18 @@ public Action Command_JoinMsg(int client, int args)
 	char sStorageType[256];
 	g_hCvar_StorageType.GetString(sStorageType, sizeof(sStorageType));
 
-	Handle hCustomMessageFile = null;
+	KeyValues hCustomMessageFile = null;
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		hCustomMessageFile = CreateKeyValues("custom_messages");
+		hCustomMessageFile = new KeyValues("custom_messages");
 
-		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
+		if (!hCustomMessageFile.ImportFromFile(g_sCustomMessageFile))
 		{
 			SetFailState("[ConnectAnnounce] Config file missing!");
 			return Plugin_Handled;
 		}
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 	}
 
 	if (args < 1)
@@ -388,16 +387,16 @@ public Action Command_JoinMsg(int client, int args)
 
 		if (strcmp(sStorageType, "local", false) == 0)
 		{
-			if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
-				KvSetString(hCustomMessageFile, "message", g_sClientJoinMessage[client]);
+			if (hCustomMessageFile.JumpToKey(g_sAuthID[client], true))
+				hCustomMessageFile.SetString("message", g_sClientJoinMessage[client]);
 			else
 			{
 				SetFailState("[ConnectAnnounce] Could not find/create Key Value!");
 				return Plugin_Handled;
 			}
 
-			KvRewind(hCustomMessageFile);
-			KeyValuesToFile(hCustomMessageFile, g_sCustomMessageFile);
+			hCustomMessageFile.Rewind();
+			hCustomMessageFile.ExportToFile(g_sCustomMessageFile);
 
 			CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", g_sClientJoinMessage[client]);
 		}
@@ -411,8 +410,7 @@ public Action Command_JoinMsg(int client, int args)
 	{
 		if (hCustomMessageFile != null)
 		{
-			CloseHandle(hCustomMessageFile);
-			hCustomMessageFile = null;
+			delete hCustomMessageFile;
 		}
 	}
 
@@ -435,25 +433,25 @@ public Action Command_ResetJoinMsg(int client, int args)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
+		KeyValues hCustomMessageFile = new KeyValues("custom_messages");
 
-		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
+		if (!hCustomMessageFile.ImportFromFile(g_sCustomMessageFile))
 		{
 			SetFailState("[ConnectAnnounce] Config file missing!");
 			return Plugin_Handled;
 		}
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 
-		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
-			KvSetString(hCustomMessageFile, "message", "reset");
+		if (hCustomMessageFile.JumpToKey(g_sAuthID[client], true))
+			hCustomMessageFile.SetString("message", "reset");
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 
-		KeyValuesToFile(hCustomMessageFile, g_sCustomMessageFile);
+		hCustomMessageFile.ExportToFile(g_sCustomMessageFile);
 
 		if (hCustomMessageFile != null)
-			CloseHandle(hCustomMessageFile);
+			delete hCustomMessageFile;
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0)
 	{
@@ -498,33 +496,33 @@ public Action Command_Ban(int client, int args)
 
 	if (strcmp(sStorageType, "local", false) == 0)
 	{
-		Handle hCustomMessageFile = CreateKeyValues("custom_messages");
+		KeyValues hCustomMessageFile = new KeyValues("custom_messages");
 
-		if (!FileToKeyValues(hCustomMessageFile, g_sCustomMessageFile))
+		if (!hCustomMessageFile.ImportFromFile(g_sCustomMessageFile))
 		{
 			SetFailState("[ConnectAnnounce] Config file missing!");
 			return Plugin_Handled;
 		}
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 
 		char sBannedTime[256];
 		IntToString(g_iClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
 
-		if (KvJumpToKey(hCustomMessageFile, g_sAuthID[client], true))
-			KvSetString(hCustomMessageFile, "banned", sBannedTime);
+		if (hCustomMessageFile.JumpToKey(g_sAuthID[client], true))
+			hCustomMessageFile.SetString("banned", sBannedTime);
 		else
 		{
 			LogError("[ConnectAnnounce] Could not find/create Key Value!");
 			return Plugin_Handled;
 		}
 
-		KvRewind(hCustomMessageFile);
+		hCustomMessageFile.Rewind();
 
-		KeyValuesToFile(hCustomMessageFile, g_sCustomMessageFile);
+		hCustomMessageFile.ExportToFile(g_sCustomMessageFile);
 
 		if (hCustomMessageFile != null)
-			CloseHandle(hCustomMessageFile);
+			delete hCustomMessageFile;
 	}
 	else if (strcmp(sStorageType, "sql", false) == 0)
 	{
@@ -567,7 +565,6 @@ stock void HlstatsxDB_Disconnect()
 	if (g_hHlstatsx_Database != null)
 	{
 		delete g_hHlstatsx_Database;
-		g_hHlstatsx_Database = null;
 	}
 
 	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
@@ -589,7 +586,7 @@ stock bool HlstatsxDB_Connect()
 		{
 			LogError("Could not find \"%s\" entry in databases.cfg.", HLSTATS_DB_NAME);
 			g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
-			SetConVarBool(g_hCvar_UseHlstatsx, false);
+			g_hCvar_UseHlstatsx.SetBool(false);
 			return false;
 		}
 
@@ -635,7 +632,6 @@ stock bool Hlstatsx_DB_Conn_Lost(DBResultSet db)
 		{
 			LogError("Lost connection to HLStatsX DB. Reconnect after delay.");
 			delete g_hHlstatsx_Database;
-			g_hHlstatsx_Database = null;
 		}
 
 		if (g_Hlstatsx_DatabaseState != DatabaseState_Wait && g_Hlstatsx_DatabaseState != DatabaseState_Connecting)
@@ -658,7 +654,7 @@ public Action TimerHLStatsX_Reconnect(Handle timer, any data)
 
 stock void Hlstatsx_DB_Reconnect()
 {
-	if (GetConVarBool(g_hCvar_UseHlstatsx) == false)
+	if (g_hCvar_UseHlstatsx.BoolValue == false)
 		return;
 
 	g_Hlstatsx_DatabaseState = DatabaseState_Disconnected;
@@ -671,7 +667,6 @@ stock void DB_Disconnect()
 	if (g_hDatabase != null)
 	{
 		delete g_hDatabase;
-		g_hDatabase = null;
 	}
 
 	g_DatabaseState = DatabaseState_Disconnected;
@@ -727,7 +722,7 @@ public void GotDatabase(Database db, const char[] error, any data)
 	g_hDatabase = db;
 
 	char sDriver[16];
-	SQL_GetDriverIdent(SQL_ReadDriver(g_hDatabase), sDriver, sizeof(sDriver));
+	g_hDatabase.Driver.GetIdentifier(sDriver, sizeof(sDriver));
 
 	if (!strncmp(sDriver, "my", 2, false))
 		g_bSQLite = false;
@@ -746,7 +741,6 @@ stock bool DB_Conn_Lost(DBResultSet db)
 		{
 			LogError("Lost connection to DB. Reconnect after delay.");
 			delete g_hDatabase;
-			g_hDatabase = null;
 		}
 
 		if (g_DatabaseState != DatabaseState_Wait && g_DatabaseState != DatabaseState_Connecting)
@@ -1293,11 +1287,11 @@ public void Announcer(int client, int iRank, bool sendToAll)
 	if (StrContains(sFinalMessage, "{COUNTRY}") != -1)
 	{
 		char  sCountryColor[64] = "";
-		Regex regexHEX          = CompileRegex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
-		Regex regexColor        = CompileRegex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
+		Regex regexHEX          = new Regex("{COUNTRY_COLOR:(#?)([A-Fa-f0-9]{6})}");
+		Regex regexColor        = new Regex("{COUNTRY_COLOR:([a-z-A-Z]+)}");
 
-		if ((MatchRegex(regexHEX, sFinalMessage) >= 1 && GetRegexSubString(regexHEX, 0, sCountryColor, sizeof(sCountryColor)))
-			|| (MatchRegex(regexColor, sFinalMessage) >= 1 && GetRegexSubString(regexColor, 0, sCountryColor, sizeof(sCountryColor))))
+		if ((regexHEX.Match(sFinalMessage) >= 1 && regexHEX.GetSubString(0, sCountryColor, sizeof(sCountryColor)))
+			|| (regexColor.Match(sFinalMessage) >= 1 && regexColor.GetSubString(0, sCountryColor, sizeof(sCountryColor))))
 		{
 			ReplaceString(sFinalMessage, sizeof(sFinalMessage), sCountryColor, "");
 			char[] sTagCountryColor = "{COUNTRY_COLOR:";
@@ -1382,7 +1376,7 @@ public Action DelayAnnouncer(Handle timer, any serialClient)
 	if (client == 0 || IsFakeClient(client))
 		return Plugin_Stop;
 
-	if (GetConVarBool(g_hCvar_UseHlstatsx) == false || g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
+	if (g_hCvar_UseHlstatsx.BoolValue == false || g_hHlstatsx_Database == null || g_Hlstatsx_DatabaseState != DatabaseState_Connected)
 	{
 		Announcer(client, -1, true);
 	}
