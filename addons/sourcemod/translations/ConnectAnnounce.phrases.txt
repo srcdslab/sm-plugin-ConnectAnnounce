@@ -1,0 +1,117 @@
+"Phrases"
+{
+	"Cannot Use From Console"
+	{
+		"en"		"Cannot use command from server console"
+		"fr"		"Impossible d'utiliser cette commande depuis la console du serveur"
+		"ru"		"Эту команду нельзя использовать из консоли сервера"
+		"es"		"No se puede usar este comando desde la consola del servidor"
+		"de"		"Dieser Befehl kann nicht in der Serverkonsole verwendet werden"
+		"pt"		"Não é possível usar este comando pelo console do servidor"
+		"chi"		"无法在服务器控制台中使用此命令"
+	}
+	"Join Message Not Set"
+	{
+		"en"		"No Join Message set! Use sm_joinmsg <your message here> to set one."
+		"fr"		"Aucun message de connexion défini ! Utilisez sm_joinmsg <your message here> pour en définir un."
+		"ru"		"Сообщение при входе не задано! Используйте sm_joinmsg <your message here>, чтобы задать его."
+		"es"		"¡No tienes mensaje de entrada! Usa sm_joinmsg <your message here> para establecer uno."
+		"de"		"Keine Beitrittsnachricht festgelegt! Benutze sm_joinmsg <your message here>, um eine festzulegen."
+		"pt"		"Nenhuma mensagem de entrada definida! Use sm_joinmsg <your message here> para definir uma."
+		"chi"		"未设置进服消息！使用 sm_joinmsg <your message here> 进行设置。"
+	}
+	"Join Message Current"
+	{
+		"#format"	"{1:s}"
+		"en"		"Your Join Message is: {1}"
+		"fr"		"Votre message de connexion est : {1}"
+		"ru"		"Ваше сообщение при входе: {1}"
+		"es"		"Tu mensaje de entrada es: {1}"
+		"de"		"Deine Beitrittsnachricht lautet: {1}"
+		"pt"		"Sua mensagem de entrada é: {1}"
+		"chi"		"你的进服消息是：{1}"
+	}
+	"Join Message Set"
+	{
+		"#format"	"{1:s}"
+		"en"		"Successfully set your join message to: {1}"
+		"fr"		"Votre message de connexion a bien été défini sur : {1}"
+		"ru"		"Ваше сообщение при входе изменено на: {1}"
+		"es"		"Tu mensaje de entrada se ha establecido como: {1}"
+		"de"		"Deine Beitrittsnachricht wurde erfolgreich festgelegt auf: {1}"
+		"pt"		"Sua mensagem de entrada foi definida como: {1}"
+		"chi"		"已成功将你的进服消息设置为：{1}"
+	}
+	"Join Message Reset"
+	{
+		"en"		"Your Join Message got reset."
+		"fr"		"Votre message de connexion a été réinitialisé."
+		"ru"		"Ваше сообщение при входе сброшено."
+		"es"		"Tu mensaje de entrada se ha restablecido."
+		"de"		"Deine Beitrittsnachricht wurde zurückgesetzt."
+		"pt"		"Sua mensagem de entrada foi redefinida."
+		"chi"		"你的进服消息已重置。"
+	}
+	"Join Message Ban Usage"
+	{
+		"en"		"Usage: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"fr"		"Utilisation : sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"ru"		"Использование: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"es"		"Uso: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"de"		"Verwendung: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"pt"		"Uso: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"chi"		"用法：sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+	}
+	"Join Message Unbanned"
+	{
+		"#format"	"{1:L}"
+		"en"		"{1} has been un-banned."
+		"fr"		"{1} a été débanni."
+		"ru"		"{1} разбанен."
+		"es"		"{1} ha sido desbaneado."
+		"de"		"{1} wurde entbannt."
+		"pt"		"{1} foi desbanido."
+		"chi"		"{1} 已被解封。"
+	}
+	"Join Message Banned"
+	{
+		"#format"	"{1:L}"
+		"en"		"{1} has been banned."
+		"fr"		"{1} a été banni."
+		"ru"		"{1} забанен."
+		"es"		"{1} ha sido baneado."
+		"de"		"{1} wurde gebannt."
+		"pt"		"{1} foi banido."
+		"chi"		"{1} 已被封禁。"
+	}
+	"Join Message Save Error"
+	{
+		"en"		"An error occurred while saving your join message, please try again later."
+		"fr"		"Une erreur est survenue lors de l'enregistrement de votre message de connexion, veuillez réessayer plus tard."
+		"ru"		"Произошла ошибка при сохранении сообщения при входе, попробуйте позже."
+		"es"		"Se produjo un error al guardar tu mensaje de entrada, inténtalo de nuevo más tarde."
+		"de"		"Beim Speichern deiner Beitrittsnachricht ist ein Fehler aufgetreten, bitte versuche es später erneut."
+		"pt"		"Ocorreu um erro ao salvar sua mensagem de entrada, tente novamente mais tarde."
+		"chi"		"保存进服消息时出错，请稍后再试。"
+	}
+	"Join Message Skipped"
+	{
+		"en"		"{red}Join message skipped (too long). {default}Use sm_joinmsg."
+		"fr"		"{red}Message de connexion ignoré (trop long). {default}Utilisez sm_joinmsg."
+		"ru"		"{red}Сообщение при входе пропущено (слишком длинное). {default}Используйте sm_joinmsg."
+		"es"		"{red}Mensaje de entrada omitido (demasiado largo). {default}Usa sm_joinmsg."
+		"de"		"{red}Beitrittsnachricht übersprungen (zu lang). {default}Benutze sm_joinmsg."
+		"pt"		"{red}Mensagem de entrada ignorada (longa demais). {default}Use sm_joinmsg."
+		"chi"		"{red}进服消息过长，已跳过。{default}请使用 sm_joinmsg。"
+	}
+	"Join Message Truncated"
+	{
+		"en"		"{red}Join message truncated. {default}Use sm_joinmsg."
+		"fr"		"{red}Message de connexion tronqué. {default}Utilisez sm_joinmsg."
+		"ru"		"{red}Сообщение при входе обрезано. {default}Используйте sm_joinmsg."
+		"es"		"{red}Mensaje de entrada recortado. {default}Usa sm_joinmsg."
+		"de"		"{red}Beitrittsnachricht gekürzt. {default}Benutze sm_joinmsg."
+		"pt"		"{red}Mensagem de entrada cortada. {default}Use sm_joinmsg."
+		"chi"		"{red}进服消息已被截断。{default}请使用 sm_joinmsg。"
+	}
+}
