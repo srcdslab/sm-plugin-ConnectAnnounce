@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.6.4",
+	version     = "2.6.5",
 	url         = ""
 }
 
@@ -102,6 +102,7 @@ public APLRes AskPluginLoad2(Handle hMyself, bool bLate, char[] sError, int erro
 public void OnPluginStart()
 {
 	LoadTranslations("common.phrases");
+	LoadTranslations("ConnectAnnounce.phrases");
 
 	g_hCvar_Enabled     = CreateConVar("sm_connect_announce", "1", "Should the plugin be enabled ?", FCVAR_NONE, true, 0.0, true, 1.0);
 	g_hCvar_StorageType = CreateConVar("sm_connect_announce_storage", "sql", "Storage type used for connect messages [sql, local]", FCVAR_NONE, true, 0.0, true, 1.0);
@@ -344,7 +345,7 @@ public Action Command_JoinMsg(int client, int args)
 
 	if (!client)
 	{
-		ReplyToCommand(client, "[ConnectAnnounce] Cannot use command from server console");
+		ReplyToCommand(client, "[ConnectAnnounce] %t", "Cannot Use From Console");
 		return Plugin_Handled;
 	}
 
@@ -368,9 +369,9 @@ public Action Command_JoinMsg(int client, int args)
 	if (args < 1)
 	{
 		if (strcmp(g_sClientJoinMessage[client], "reset", false) == 0 || strlen(g_sClientJoinMessage[client]) < 1)
-			CPrintToChat(client, "[ConnectAnnounce] No Join Message set! Use sm_joinmsg <your message here> to set one.");
+			CPrintToChat(client, "[ConnectAnnounce] %t", "Join Message Not Set");
 		else
-			CPrintToChat(client, "[ConnectAnnounce] Your Join Message is: %s", g_sClientJoinMessage[client]);
+			CPrintToChat(client, "[ConnectAnnounce] %t", "Join Message Current", g_sClientJoinMessage[client]);
 	}
 	else
 	{
@@ -392,7 +393,7 @@ public Action Command_JoinMsg(int client, int args)
 			hCustomMessageFile.Rewind();
 			hCustomMessageFile.ExportToFile(g_sCustomMessageFile);
 
-			CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", g_sClientJoinMessage[client]);
+			CPrintToChat(client, "[ConnectAnnounce] %t", "Join Message Set", g_sClientJoinMessage[client]);
 		}
 		else if (strcmp(sStorageType, "sql", false) == 0)
 		{
@@ -418,7 +419,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 
 	if (!client)
 	{
-		ReplyToCommand(client, "[ConnectAnnounce] Cannot use command from server console");
+		ReplyToCommand(client, "[ConnectAnnounce] %t", "Cannot Use From Console");
 		return Plugin_Handled;
 	}
 
@@ -453,7 +454,7 @@ public Action Command_ResetJoinMsg(int client, int args)
 		SQLInsertUpdate_JoinClient(client);
 	}
 
-	CPrintToChat(client, "{green}[ConnectAnnounce] {white}Your Join Message got reset.");
+	CPrintToChat(client, "{green}[ConnectAnnounce] {white}%t", "Join Message Reset");
 	return Plugin_Handled;
 }
 
@@ -461,7 +462,7 @@ public Action Command_Ban(int client, int args)
 {
 	if (args < 1)
 	{
-		CReplyToCommand(client, "{green}[SM] {default}Usage: sm_joinmsg_ban <name|#userid|@filter> <optional:time>");
+		CReplyToCommand(client, "{green}[SM] {default}%t", "Join Message Ban Usage");
 		return Plugin_Handled;
 	}
 
@@ -530,9 +531,9 @@ public Action Command_Ban(int client, int args)
 	}
 
 	if (g_iClientJoinMessageBanned[client] == -1)
-		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been un-banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%t", "Join Message Unbanned", iTarget);
 	else
-		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%L has been banned.", iTarget);
+		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%t", "Join Message Banned", iTarget);
 	return Plugin_Handled;
 }
 
@@ -984,12 +985,12 @@ stock void OnSQLInsertUpdate_Join(Database db, DBResultSet results, const char[]
 	if (DB_Conn_Lost(results, error) || error[0] != '\0')
 	{
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
-		CPrintToChat(client, "[ConnectAnnounce] An error occurred while saving your join message, please try again later.");
+		CPrintToChat(client, "[ConnectAnnounce] %t", "Join Message Save Error");
 		delete results;
 		return;
 	}
 
-	CPrintToChat(client, "[ConnectAnnounce] Successfully set your join message to: %s", g_sClientJoinMessage[client]);
+	CPrintToChat(client, "[ConnectAnnounce] %t", "Join Message Set", g_sClientJoinMessage[client]);
 	delete results;
 }
 
@@ -1313,7 +1314,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 		int availableLength = MAX_SAYTEXT2_LENGTH - baseLength;
 		if (availableLength <= 1)
 		{
-			CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message skipped (too long). {default}Use sm_joinmsg.");
+			CPrintToChat(client, "{green}[ConnectAnnounce] %t", "Join Message Skipped");
 		}
 		else
 		{
@@ -1321,7 +1322,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 			if (strlen(sSafeJoinMessage) > joinMaxLength)
 			{
 				sSafeJoinMessage[joinMaxLength] = '\0';
-				CPrintToChat(client, "{green}[ConnectAnnounce] {red}Join message truncated. {default}Use sm_joinmsg.");
+				CPrintToChat(client, "{green}[ConnectAnnounce] %t", "Join Message Truncated");
 			}
 
 			Format(sFinalMessage, sizeof(sFinalMessage), "%s %s", sFinalMessage, sSafeJoinMessage);
