@@ -86,7 +86,7 @@ public Plugin myinfo =
 	name        = "Connect Announce",
 	author      = "Neon + Botox + maxime1907 + .Rushaway",
 	description = "Connect Announcer",
-	version     = "2.6.5",
+	version     = "2.6.6",
 	url         = ""
 }
 
@@ -471,19 +471,19 @@ public Action Command_Ban(int client, int args)
 	char sTime[128];
 	GetCmdArg(1, sTarget, sizeof(sTarget));
 
-	if (args > 1)
-	{
-		GetCmdArg(2, sTime, sizeof(sTime));
-		g_iClientJoinMessageBanned[client] = StringToInt(sTime, 10);
-	}
-	else
-	{
-		g_iClientJoinMessageBanned[client] = 0;    // Perma ban
-	}
-
 	if ((iTarget = FindTarget(client, sTarget, true)) == -1)
 	{
 		return Plugin_Handled;
+	}
+
+	if (args > 1)
+	{
+		GetCmdArg(2, sTime, sizeof(sTime));
+		g_iClientJoinMessageBanned[iTarget] = StringToInt(sTime, 10);
+	}
+	else
+	{
+		g_iClientJoinMessageBanned[iTarget] = 0;    // Perma ban
 	}
 
 	char sStorageType[256];
@@ -502,13 +502,14 @@ public Action Command_Ban(int client, int args)
 		hCustomMessageFile.Rewind();
 
 		char sBannedTime[256];
-		IntToString(g_iClientJoinMessageBanned[client], sBannedTime, sizeof(sBannedTime));
+		IntToString(g_iClientJoinMessageBanned[iTarget], sBannedTime, sizeof(sBannedTime));
 
-		if (hCustomMessageFile.JumpToKey(g_sAuthID[client], true))
+		if (hCustomMessageFile.JumpToKey(g_sAuthID[iTarget], true))
 			hCustomMessageFile.SetString("banned", sBannedTime);
 		else
 		{
 			LogError("[ConnectAnnounce] Could not find/create Key Value!");
+			delete hCustomMessageFile;
 			return Plugin_Handled;
 		}
 
@@ -530,7 +531,7 @@ public Action Command_Ban(int client, int args)
 		}
 	}
 
-	if (g_iClientJoinMessageBanned[client] == -1)
+	if (g_iClientJoinMessageBanned[iTarget] == -1)
 		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%t", "Join Message Unbanned", iTarget);
 	else
 		CReplyToCommand(client, "{green}[ConnectAnnounce] {white}%t", "Join Message Banned", iTarget);
@@ -539,6 +540,12 @@ public Action Command_Ban(int client, int args)
 
 public Action Command_Announce(int client, int args)
 {
+	if (!client)
+	{
+		ReplyToCommand(client, "[ConnectAnnounce] %t", "Cannot Use From Console");
+		return Plugin_Handled;
+	}
+
 	if (IsFakeClient(client))
 		return Plugin_Handled;
 
@@ -1085,7 +1092,7 @@ public void Announcer(int client, int iRank, bool sendToAll)
 
 	AdminId aid;
 
-	if (StrContains(sFinalMessage, "{PLAYERTYPE}"))
+	if (StrContains(sFinalMessage, "{PLAYERTYPE}") != -1)
 	{
 		aid = GetUserAdmin(client);
 
