@@ -9,6 +9,12 @@
 		"de"		"Dieser Befehl kann nicht in der Serverkonsole verwendet werden"
 		"pt"		"Não é possível usar este comando pelo console do servidor"
 		"chi"		"无法在服务器控制台中使用此命令"
+		"pl"		"Nie można użyć tej komendy z konsoli serwera"
+		"tr"		"Bu komut sunucu konsolundan kullanılamaz"
+		"it"		"Impossibile usare questo comando dalla console del server"
+		"ua"		"Цю команду не можна використовувати з консолі сервера"
+		"zho"		"無法在伺服器主控台中使用此指令"
+		"cze"		"Tento příkaz nelze použít z konzole serveru"
 	}
 	"Join Message Not Set"
 	{
@@ -19,6 +25,12 @@
 		"de"		"Keine Beitrittsnachricht festgelegt! Benutze sm_joinmsg <your message here>, um eine festzulegen."
 		"pt"		"Nenhuma mensagem de entrada definida! Use sm_joinmsg <your message here> para definir uma."
 		"chi"		"未设置进服消息！使用 sm_joinmsg <your message here> 进行设置。"
+		"pl"		"Nie ustawiono wiadomości powitalnej! Użyj sm_joinmsg <your message here>, aby ją ustawić."
+		"tr"		"Giriş mesajı ayarlanmadı! Ayarlamak için sm_joinmsg <your message here> kullan."
+		"it"		"Nessun messaggio di ingresso impostato! Usa sm_joinmsg <your message here> per impostarlo."
+		"ua"		"Повідомлення про вхід не задано! Використовуйте sm_joinmsg <your message here>, щоб задати його."
+		"zho"		"尚未設定進服訊息!使用 sm_joinmsg <your message here> 進行設定。"
+		"cze"		"Není nastavena žádná zpráva při připojení! Použij sm_joinmsg <your message here> pro její nastavení."
 	}
 	"Join Message Current"
 	{
@@ -30,6 +42,12 @@
 		"de"		"Deine Beitrittsnachricht lautet: {1}"
 		"pt"		"Sua mensagem de entrada é: {1}"
 		"chi"		"你的进服消息是：{1}"
+		"pl"		"Twoja wiadomość powitalna: {1}"
+		"tr"		"Giriş mesajın: {1}"
+		"it"		"Il tuo messaggio di ingresso è: {1}"
+		"ua"		"Ваше повідомлення про вхід: {1}"
+		"zho"		"你的進服訊息是:{1}"
+		"cze"		"Tvoje zpráva při připojení je: {1}"
 	}
 	"Join Message Set"
 	{
@@ -41,6 +59,12 @@
 		"de"		"Deine Beitrittsnachricht wurde erfolgreich festgelegt auf: {1}"
 		"pt"		"Sua mensagem de entrada foi definida como: {1}"
 		"chi"		"已成功将你的进服消息设置为：{1}"
+		"pl"		"Pomyślnie ustawiono wiadomość powitalną na: {1}"
+		"tr"		"Giriş mesajın başarıyla şuna ayarlandı: {1}"
+		"it"		"Messaggio di ingresso impostato con successo su: {1}"
+		"ua"		"Повідомлення про вхід успішно змінено на: {1}"
+		"zho"		"已成功將你的進服訊息設定為:{1}"
+		"cze"		"Zpráva při připojení byla úspěšně nastavena na: {1}"
 	}
 	"Join Message Reset"
 	{
@@ -51,6 +75,12 @@
 		"de"		"Deine Beitrittsnachricht wurde zurückgesetzt."
 		"pt"		"Sua mensagem de entrada foi redefinida."
 		"chi"		"你的进服消息已重置。"
+		"pl"		"Twoja wiadomość powitalna została zresetowana."
+		"tr"		"Giriş mesajın sıfırlandı."
+		"it"		"Il tuo messaggio di ingresso è stato reimpostato."
+		"ua"		"Ваше повідомлення про вхід скинуто."
+		"zho"		"你的進服訊息已重設。"
+		"cze"		"Tvoje zpráva při připojení byla resetována."
 	}
 	"Join Message Ban Usage"
 	{
@@ -61,6 +91,12 @@
 		"de"		"Verwendung: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
 		"pt"		"Uso: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
 		"chi"		"用法：sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"pl"		"Użycie: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"tr"		"Kullanım: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"it"		"Uso: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"ua"		"Використання: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"zho"		"用法:sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
+		"cze"		"Použití: sm_joinmsg_ban <name|#userid|@filter> <optional:time>"
 	}
 	"Join Message Unbanned"
 	{
@@ -72,6 +108,12 @@
 		"de"		"{1} wurde entbannt."
 		"pt"		"{1} foi desbanido."
 		"chi"		"{1} 已被解封。"
+		"pl"		"{1} został odbanowany."
+		"tr"		"{1} için yasak kaldırıldı."
+		"it"		"{1} è stato sbannato."
+		"ua"		"{1} розбанено."
+		"zho"		"{1} 已被解除封鎖。"
+		"cze"		"{1} byl odbanován."
 	}
 	"Join Message Banned"
 	{
@@ -83,6 +125,12 @@
 		"de"		"{1} wurde gebannt."
 		"pt"		"{1} foi banido."
 		"chi"		"{1} 已被封禁。"
+		"pl"		"{1} został zbanowany."
+		"tr"		"{1} yasaklandı."
+		"it"		"{1} è stato bannato."
+		"ua"		"{1} забанено."
+		"zho"		"{1} 已被封鎖。"
+		"cze"		"{1} byl zabanován."
 	}
 	"Join Message Save Error"
 	{
@@ -93,6 +141,12 @@
 		"de"		"Beim Speichern deiner Beitrittsnachricht ist ein Fehler aufgetreten, bitte versuche es später erneut."
 		"pt"		"Ocorreu um erro ao salvar sua mensagem de entrada, tente novamente mais tarde."
 		"chi"		"保存进服消息时出错，请稍后再试。"
+		"pl"		"Wystąpił błąd podczas zapisywania wiadomości powitalnej, spróbuj ponownie później."
+		"tr"		"Giriş mesajın kaydedilirken bir hata oluştu, lütfen daha sonra tekrar dene."
+		"it"		"Si è verificato un errore durante il salvataggio del messaggio di ingresso, riprova più tardi."
+		"ua"		"Під час збереження повідомлення про вхід сталася помилка, спробуйте пізніше."
+		"zho"		"儲存你的進服訊息時發生錯誤,請稍後再試。"
+		"cze"		"Při ukládání zprávy při připojení došlo k chybě, zkus to prosím později."
 	}
 	"Join Message Skipped"
 	{
@@ -103,6 +157,12 @@
 		"de"		"{red}Beitrittsnachricht übersprungen (zu lang). {default}Benutze sm_joinmsg."
 		"pt"		"{red}Mensagem de entrada ignorada (longa demais). {default}Use sm_joinmsg."
 		"chi"		"{red}进服消息过长，已跳过。{default}请使用 sm_joinmsg。"
+		"pl"		"{red}Wiadomość powitalna pominięta (zbyt długa). {default}Użyj sm_joinmsg."
+		"tr"		"{red}Giriş mesajı atlandı (çok uzun). {default}sm_joinmsg kullan."
+		"it"		"{red}Messaggio di ingresso ignorato (troppo lungo). {default}Usa sm_joinmsg."
+		"ua"		"{red}Повідомлення про вхід пропущено (надто довге). {default}Використовуйте sm_joinmsg."
+		"zho"		"{red}進服訊息已略過(太長)。{default}請使用 sm_joinmsg。"
+		"cze"		"{red}Zpráva při připojení přeskočena (příliš dlouhá). {default}Použij sm_joinmsg."
 	}
 	"Join Message Truncated"
 	{
@@ -113,5 +173,11 @@
 		"de"		"{red}Beitrittsnachricht gekürzt. {default}Benutze sm_joinmsg."
 		"pt"		"{red}Mensagem de entrada cortada. {default}Use sm_joinmsg."
 		"chi"		"{red}进服消息已被截断。{default}请使用 sm_joinmsg。"
+		"pl"		"{red}Wiadomość powitalna została skrócona. {default}Użyj sm_joinmsg."
+		"tr"		"{red}Giriş mesajı kısaltıldı. {default}sm_joinmsg kullan."
+		"it"		"{red}Messaggio di ingresso troncato. {default}Usa sm_joinmsg."
+		"ua"		"{red}Повідомлення про вхід скорочено. {default}Використовуйте sm_joinmsg."
+		"zho"		"{red}進服訊息已被截短。{default}請使用 sm_joinmsg。"
+		"cze"		"{red}Zpráva při připojení byla zkrácena. {default}Použij sm_joinmsg."
 	}
 }
